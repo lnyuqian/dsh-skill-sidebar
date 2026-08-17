@@ -1,0 +1,14 @@
+# dsh-skill-sidebar bundle patch
+#
+# Mounts the loader row for this plugin. The host half (lib/index.js) scans
+# the local skill roots (~/.agents/skills and friends), persists a cache under
+# ~/.dsh/storages/dsh-skill-sidebar, watches for newly installed skills, and
+# re-scans every Monday; it serves the cached list at /skillpanel/skills. The
+# client half (lib/client.js, declared via dsh.client) registers the 技能 tab
+# into the dsh-better-sidebar right panel.
+#
+# Installed through the official CLI:
+#   dsh plugin --profile web add dsh-skill-sidebar
+- insert:
+    - id: skill-sidebar
+      name: 'dsh-skill-sidebar'
