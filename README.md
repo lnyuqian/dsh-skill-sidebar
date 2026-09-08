@@ -1,5 +1,7 @@
 # dsh-skill-sidebar
 
+**English**: A DSH Web plugin that adds a "Skills" tab to the [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) right-side panel. It scans the local skill directories (`.agents/skills`, `.codex/skills`, `.claude/skills`, `.opencode/skills`), lists every skill with a short 4–6 character phrase describing what it does, and offers one-click copy of the `/skill-name` trigger syntax, pinning, directory tags, live re-scan on new skills, and instant rendering from cache.（中文说明见下）
+
 DSH web 插件：在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 右侧面板中新增一个「技能」选项卡，列出本机可读取的全部技能，并以简短描述介绍每个技能的功能。
 
 ## 功能
