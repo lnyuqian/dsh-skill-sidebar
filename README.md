@@ -61,16 +61,27 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 
 ## 安装 / 卸载
 
-```powershell
-# 安装（已在本机执行）
-dsh plugin --profile web add link:E:/dsh-web/插件技能安装/dsh-skill-sidebar
-# 或从任意目录：dsh plugin --profile web add link:<本包绝对路径>
+```bash
+# 安装：把 <本包绝对路径> 换成本仓库在本机的路径（link: 安装，改源码后重启即生效）
+dsh plugin --profile web add link:<本包绝对路径>
 
 # 卸载
 dsh plugin --profile web remove dsh-skill-sidebar
 ```
 
 安装/卸载后需**重启 dsh web 并硬刷新**（Ctrl/Cmd+Shift+R）。依赖以 `link:` 形式指向本目录，改动源码后重启即可生效（无需重新安装）。
+
+## 平台支持
+
+| 平台 | 状态 |
+|---|---|
+| Windows 11 | ✅ 已验证（DSH `0.1.5-rc.1`） |
+| macOS | ⚠️ 未测试 |
+
+插件只用 Node 的跨平台 API（`node:path` 的 `join()`、`node:os` 的 `homedir()`）与
+`DSH_HOME` / `DSH_AGENTS_HOME` / `DSH_SKILL_DIRS` / `DSH_SKILL_CACHE_DIR` 等环境变量定位文件：
+没有平台专有路径，也不假设路径分隔符（技能根目录一律用 `join()` 拼接）。客户端部分只在浏览器里运行，
+与操作系统无关。可选的请求跟踪日志默认关闭，需显式设置 `DSH_SKILL_SIDEBAR_TRACE`（见「路由」）。
 
 ## 开发
 

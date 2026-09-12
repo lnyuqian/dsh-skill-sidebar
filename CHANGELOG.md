@@ -5,6 +5,37 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-09-12
+
+可移植性修正：去掉源码里只对开发机成立的绝对路径，并把文档与发布说明改成与机器、与平台无关的表述。
+
+### 修复
+
+- **服务端不再写死某台机器的绝对路径**：`lib/index.js` 里的请求跟踪日志原先硬编码到一个开发机路径，
+  现已改为**默认关闭** —— 只有显式设置环境变量 `DSH_SKILL_SIDEBAR_TRACE=<绝对文件路径>` 才会写入。
+  该写入本来就在 `try/catch` 中（在别的机器上只会静默失败、不影响功能），但把绝对路径留在已发布的包
+  既不合适，也会让人误以为插件依赖它。现在未设置该变量时**不产生任何文件系统写入**。
+
+### 变更
+
+- README 的安装示例改为通用写法（`link:<本包绝对路径>`），不再出现某一台机器的具体路径；
+  并新增「平台支持」一节。
+- CHANGELOG 的实测清单与升级指引改为与机器无关的表述：profile 补丁路径统一写作
+  `$DSH_HOME/profiles/web/cordis.patch.yml`（Windows 默认 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`），
+  不再描述某次实测的条目数量等本机细节。
+
+### 平台支持
+
+| 平台 | 状态 |
+|---|---|
+| Windows 11 | ✅ 已验证（DSH `0.1.5-rc.1`） |
+| macOS | ⚠️ 未测试 |
+
+插件只用 Node 的跨平台 API（`node:path` 的 `join()`、`node:os` 的 `homedir()`）以及
+`DSH_HOME` / `DSH_AGENTS_HOME` / `DSH_SKILL_DIRS` / `DSH_SKILL_CACHE_DIR` 等环境变量来定位文件，
+不含平台专有路径，也不假设路径分隔符。客户端部分只在浏览器中运行，与操作系统无关。
+升级到本版本无需改动配置：行为与 `0.2.0` 相同，只是不再有那个硬编码路径。
+
 ## [0.2.0] - 2026-09-12
 
 **重大更新：从第三方 `dsh-better-sidebar` 面板迁移到 DSH 官方右侧边栏。**
@@ -80,24 +111,26 @@ node test-client.mjs   # ALL CLIENT CHECKS PASSED
 node test-host.mjs     # ALL CHECKS PASSED
 ```
 
-并在真实 GUI（`http://127.0.0.1:3080`）逐项实测通过：
+并在真实 DSH Web GUI（默认地址 `http://127.0.0.1:3080`）逐项实测通过：
 
 - 标签确实渲染在官方面板内（`[data-dsh-skill-sidebar="body"]` 位于 `[data-sidebar-right-panel]`，
   且不在 `[data-dsh-better-sidebar]` 内）；
-- 技能列表 90 条；
-- 搜索过滤（`lark` → 27 条且全部匹配）、无结果提示、清空恢复；
+- 技能列表正常列出，条目数与页脚「本机 / 实时」诊断行一致；
+- 搜索过滤、无匹配提示、清空恢复；
 - 置顶排到最前并落 `localStorage`（`dsh-skill-sidebar:pins:v1`）、取消置顶恢复字典序；
 - 复制把 `/技能名` 写入剪贴板并显示对勾反馈；
 - 悬停弹出完整描述浮层，移开后消失；
-- 刷新按钮「刷新中… → 刷新」往返并且列表保持;
-- 点标签条的 `+` 打开指南页，三张胶囊：**工作区文件 / 技能 / 视觉**。
+- 刷新按钮「刷新中… → 刷新」往返并且列表保持；
+- 点标签条的 `+` 打开指南页，官方「工作区文件」胶囊与本插件的「技能」胶囊并列出现。
 
 ### 升级指引
 
 1. 更新插件源码（或重装 `link:` 依赖）。
-2. 确认 DSH Web 端已内置官方侧边栏（`node_modules/@deepseek-ai/dsh-client-ui-sidebar-right` 存在）。
+2. 确认 DSH Web 端已内置官方侧边栏（DSH 安装目录下的
+   `node_modules/@deepseek-ai/dsh-client-ui-sidebar-right` 存在）。
 3. **停用第三方 `dsh-better-sidebar`**（可逆，别卸载）：在 profile 的 patch 层
-   `~/.dsh/profiles/web/cordis.patch.yml` 中按行 id 禁用，行 id 取自该插件的 bundle patch：
+   `cordis.patch.yml` 中按行 id 禁用 —— 即 `$DSH_HOME/profiles/web/cordis.patch.yml`
+   （Windows 默认 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`），行 id 取自该插件的 bundle patch：
 
    ```yaml
    - id: better-sidebar
@@ -113,4 +146,5 @@ node test-host.mjs     # ALL CHECKS PASSED
 **回滚**：删掉上面那两行 patch 并重启即可恢复 `dsh-better-sidebar`；
 把 `lib/client.js` 与 `package.json` 回退到 `v0.1.0` 并重启即可退回第三方面板版。
 
+[0.2.1]: https://github.com/lnyuqian/dsh-skill-sidebar/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/lnyuqian/dsh-skill-sidebar/compare/v0.1.0...v0.2.0
