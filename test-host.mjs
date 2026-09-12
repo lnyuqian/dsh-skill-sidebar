@@ -7,7 +7,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply, internals } from './dsh-skill-sidebar/lib/index.js'
+import { apply, internals } from './lib/index.js'
 
 let failures = 0
 function check(name, cond, detail) {

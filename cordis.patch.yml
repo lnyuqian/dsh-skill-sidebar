@@ -4,8 +4,9 @@
 # the local skill roots (~/.agents/skills and friends), persists a cache under
 # ~/.dsh/storages/dsh-skill-sidebar, watches for newly installed skills, and
 # re-scans every Monday; it serves the cached list at /skillpanel/skills. The
-# client half (lib/client.js, declared via dsh.client) registers the 技能 tab
-# into the dsh-better-sidebar right panel.
+# client half (lib/client.js, declared via dsh.client) registers the 技能 page
+# tab into DSH's official right Sidebar
+# (@deepseek-ai/dsh-client-ui-sidebar-right) as a tab type plus a guide entry.
 #
 # Installed through the official CLI:
 #   dsh plugin --profile web add dsh-skill-sidebar
