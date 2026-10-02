@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   把 dsh-skill-sidebar（技能侧边栏）安装 / 升级 / 卸载到 DeepSeek Harness **桌面版**的 desktop profile。
 
