@@ -54,6 +54,27 @@ console.log('\n[1b] short phrases')
   check('unknown skill falls back to rule phrases', newSkill.length === 1 && newSkill[0].startsWith('本地文件'), JSON.stringify(newSkill))
 }
 
+/* ---- 1c. shipped 中文短语 + 中文说明 (lib/skills-zh.json) ---- */
+console.log('\n[1c] Chinese phrases for English skills')
+{
+  const zhTable = JSON.parse(readFileSync(new URL('./lib/skills-zh.json', import.meta.url), 'utf8'))
+  const zhNames = Object.keys(zhTable).filter((k) => k !== '_meta')
+  check('zh table carries a fingerprint version', typeof zhTable._meta?.version === 'string' && zhTable._meta.version !== '', JSON.stringify(zhTable._meta))
+  check('zh table covers the English skills', zhNames.length > 100, String(zhNames.length))
+  check('reported zh count matches the table', internals.zhSkillCount === zhNames.length, `${internals.zhSkillCount} vs ${zhNames.length}`)
+  const badStructure = zhNames.filter((n) => !Array.isArray(zhTable[n].phrases) || zhTable[n].phrases.length < 2
+    || typeof zhTable[n].summary !== 'string' || zhTable[n].summary === '')
+  check('every zh entry has phrases + summary', badStructure.length === 0, JSON.stringify(badStructure.slice(0, 5)))
+  const badChars = zhNames.filter((n) => zhTable[n].phrases.some((p) => typeof p !== 'string' || p.length < 3 || p.length > 8))
+  check('zh phrases stay short (3-8 chars)', badChars.length === 0, JSON.stringify(badChars.slice(0, 5)))
+  const sample = zhNames[0]
+  check('zh phrases win over the rule fallback', JSON.stringify(internals.phrasesOf(sample, 'Use when building things.')) === JSON.stringify(zhTable[sample].phrases), sample)
+  check('zhOf exposes the entry', internals.zhOf(sample)?.summary === zhTable[sample].summary, JSON.stringify(internals.zhOf(sample)))
+  check('zhOf returns null for an unknown skill', internals.zhOf('definitely-not-a-skill-xyz') === null)
+  check('phrases.json still wins for Chinese skills', internals.phrasesOf('lark-calendar', '任意描述').includes('日程管理'))
+  check('cache signature carries the zh fingerprint', internals.rootsSignature().includes('zh:' + zhTable._meta.version), internals.rootsSignature().slice(-30))
+}
+
 /* ---- 2. scan the real skill root ---- */
 console.log('\n[2] scanning real skill roots')
 {
@@ -66,8 +87,8 @@ console.log('\n[2] scanning real skill roots')
   // uninstalled), so assert the property instead of one fixed skill name.
   const cjkSample = skills.find((s) => /[\u4e00-\u9fff]/.test(s.description || ''))
   check('Chinese description parsed (any skill)', !!cjkSample && cjkSample.description.length > 5, JSON.stringify(cjkSample))
-  const watch = skills.find((s) => s.name === 'watch')
-  check('watch present with English description', !!watch && watch.description.startsWith('Watch a video'), JSON.stringify(watch))
+  const asciiSample = skills.find((s) => /^[\x20-\x7e]+$/.test(s.description || '') && s.description.length > 10)
+  check('English description parsed (any skill)', !!asciiSample, JSON.stringify(asciiSample))
   const names = skills.map((s) => s.name)
   check('sorted by name (locale-aware)', names.every((n, i) => i === 0 || names[i - 1].localeCompare(n) <= 0))
   check('no duplicate names', new Set(names).size === names.length)
@@ -75,17 +96,26 @@ console.log('\n[2] scanning real skill roots')
   check('every entry has name+description', bad.length === 0, JSON.stringify(bad.slice(0, 3)))
   const noPhrases = skills.filter((s) => !Array.isArray(s.phrases) || s.phrases.length === 0)
   check('every entry has phrases', noPhrases.length === 0, JSON.stringify(noPhrases.map((s) => s.name)))
-  // The hand-written table outlives individual skills, so verify it through the
-  // skills that are actually installed instead of a fixed name.
+  // The hand-written table outlives individual skills, so it is verified without
+  // depending on which skills this machine happens to have installed.
   const handWritten = JSON.parse(readFileSync(new URL('./lib/phrases.json', import.meta.url), 'utf8'))
-  const handName = Object.keys(handWritten).find((n) => names.indexOf(n) !== -1)
-  check('hand-written phrase table still matches an installed skill', !!handName, `table=${Object.keys(handWritten).length} skills=${names.length}`)
-  const handSkill = handName ? skills.find((s) => s.name === handName) : null
+  const handNames = Object.keys(handWritten)
+  check('hand-written phrase table is shipped', handNames.length >= 20, `entries=${handNames.length}`)
   check(
-    'a hand-written skill uses the table phrases',
-    !!handSkill && JSON.stringify(handSkill.phrases) === JSON.stringify(handWritten[handName]),
-    JSON.stringify(handSkill && handSkill.phrases),
+    'phrasesOf returns the hand-written list without a scan',
+    JSON.stringify(internals.phrasesOf(handNames[0], '任意描述')) === JSON.stringify(handWritten[handNames[0]]),
+    handNames[0],
   )
+  const scannedHand = skills.find((s) => handNames.indexOf(s.name) !== -1)
+  if (scannedHand) {
+    check(
+      'a scanned skill carries its hand-written phrases',
+      JSON.stringify(scannedHand.phrases) === JSON.stringify(handWritten[scannedHand.name]),
+      scannedHand.name,
+    )
+  } else {
+    console.log(`  note: none of the ${handNames.length} hand-written skills is installed here — scan cross-check skipped`)
+  }
   const phraseLen = skills.every((s) => s.phrases.every((p) => p.length <= 8))
   check('all phrases are short (<=8 chars)', phraseLen)
 }

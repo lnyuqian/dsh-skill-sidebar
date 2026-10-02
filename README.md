@@ -16,8 +16,9 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 - **复制（一键调用）**：每行「复制」按钮，点击复制 `/技能名`（带斜杠，DSH 输入框的技能触发语法），粘贴到输入框即可触发该技能。
 - **置顶 / 取消置顶**：每行 12px 图钉按钮；点击置顶后该技能**排到列表最前**（图标变主题色实心），再点取消；置顶状态存浏览器 localStorage（`dsh-skill-sidebar:pins:v1`），刷新后保留。
 - **目录扩展扫描**：扫描本机 4 个技能目录 —— `.agents/skills`（公共）、`.codex/skills`、`.claude/skills`、`.opencode/skills`（后三个均可用环境变量 `DSH_CODEX_SKILL_DIR` / `DSH_CLAUDE_SKILL_DIR` / `DSH_OPENCODE_SKILL_DIR` 覆盖）；同名技能以 `.agents` 优先去重（`.claude` 的 junction 软链接不重复显示）。各目录类型均支持 `$DSH_SKILL_DIRS` 追加。
-- **短语来源**：插件自带 `lib/phrases.json`（为全部技能手写的 4-6 字短语清单）；新安装的技能自动用规则从描述中拆分生成短语（按标点切分、取每段前 6 字、去重、最多 6 条）。解析自动处理 UTF-8 BOM 与 GBK 编码文件。
-- **立即列出，无需等待**：服务端把技能列表直接注入页面（`window.__DSH_SKILLS__`），同时持久化到浏览器 localStorage 与会话缓存文件，再次启动打开选项卡即可瞬间渲染，无需网络往返。
+- **短语来源**：插件自带 `lib/phrases.json`（为中文技能手写的 4-6 字短语清单）与 `lib/skills-zh.json`（为**英文** SKILL.md 技能提供的中文短语 + 一句话中文说明，随包分发）；两者都没有的新安装技能自动用规则从描述中拆分生成短语（按标点切分、取每段前 6 字、去重、最多 6 条）。解析自动处理 UTF-8 BOM 与 GBK 编码文件。
+- **中文化（v0.3.0）**：本机多数技能的 `SKILL.md` 是英文，规则短语只能截出 `Use when`、`adding A` 这类片段。现在列表第二行显示随包的中文短语（如 `网页搜索，整页抓取，资料检索`），悬停浮层把**中文说明排在最前**、英文原文与 `whenToUse` 保留在后；技能名保持英文原样，因为它就是 `/技能名` 的调用标识。中文技能沿用 `phrases.json` 的手写短语，不受影响。
+- **立即列出，无需等待**：服务端把技能列表直接注入页面（`window.__DSH_SKILLS__`），同时持久化到浏览器 localStorage 与会话缓存文件，再次启动打开选项卡即可瞬间渲染，无需网络往返。**桌面版例外**：Electron 直接读取打包好的前端（`dsh-app://app/` 由 `serveWebDocument` 提供），不经过 `webServer` 的 index 变换管道，因此该首屏注入在桌面端不生效 —— 桌面端首屏来自 localStorage 快照与实时目录，随后由 `/skillpanel/skills` 补齐（功能不受影响，只是没有"零请求"那一层）。
 - **自动添加新技能**：4 个技能目录被 `fs.watch` 监听（含父目录），新技能安装后自动重新扫描；标签页可见期间每 30 秒后台刷新一次实时目录；缓存随目录集合变化自动失效重扫。
 - **每周一重新读取**：周一时服务端强制对全部技能做一次全量重读；此后每 6 小时校验一次，若缓存早于当天则再次刷新。
 - **桌面版（v0.3.0）**：同一份代码在 **DeepSeek Harness 桌面版**里运行 —— 页面挂在 `dsh-app://app/` 协议下，相对 `fetch('/skillpanel/skills')` 由 Electron 主进程带认证 cookie 转发给本地 webserver，槽位注册与数据通道与 web 版完全一致；仅悬停浮层按窗口尺寸自适应（左右夹紧、上下翻转、限高，超出空间的描述截断为省略号），长技能名在窄栏里省略显示而不是把操作按钮挤出可视区，页脚显示当前运行外壳（桌面版 / 浏览器）。
@@ -33,6 +34,7 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 | 插件安装 | `dsh plugin --profile web add …` | 应用内插件管理（设置 → 插件）或 `install-desktop.ps1` |
 | 侧边栏契约 | 官方 `sidebar.right.pane.tab(.title)` + `sidebarRightTabs` | **完全相同** |
 | 数据通道 | `fetch('/skillpanel/skills')` | **相同**（`dsh-app://` 下由主进程代理并带认证 cookie） |
+| 首屏注入 | `webServer.tapIndex` → `window.__DSH_SKILLS__` | **不生效**（Electron 直接读打包前端）；首屏用 localStorage 快照 + 实时目录 |
 | 差异 | — | 窗口通常更小 → 浮层几何自适应、窄栏技能名省略 |
 
 安装（桌面版已运行时，**无需重启**）：
@@ -53,7 +55,7 @@ pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
 - 列表底部显示「桌面版」与技能来源（本机 / 实时 / 缓存）；
 - 服务端缓存落在 `$DSH_HOME/storages/dsh-skill-sidebar/skills.json`，说明宿主半侧已扫描完成。
 
-> 桌面版与 web 版共用同一份 `lib/`：没有平台分叉代码，`dsh.client.platform` 仍是 `"web"`（桌面版同样按 web 平台客户端加载，与 dsh-mobile、dsh-quick-prompts 一致）。
+> 桌面版与 web 版共用同一份 `lib/`：没有平台分叉代码，`dsh.client.platform` 仍是 `"web"`（桌面版同样按 web 平台客户端加载，与 dsh-mobile、dsh-quick-prompts 一致）。唯一的实现差异是上面表格里的首屏注入一行：`tapIndex` 只在浏览器路径上执行。
 
 ## 与官方侧边栏的契约
 
@@ -75,6 +77,7 @@ pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
 
 - **实时目录**：`connection.api.skills.list({ sessionId })` —— 当前会话可见的技能（含内置与用户技能），由 DSH 的 skill 注册表实时提供。
 - **本机扫描**：`GET /skillpanel/skills` —— 插件服务端直接扫描技能根目录（`~/.agents/skills`，可用 `$DSH_AGENTS_HOME` 与 `$DSH_SKILL_DIRS` 扩展），解析 `SKILL.md` 的 YAML frontmatter（`name` / `description` / `whenToUse`）。
+- **中文短语与说明**：`lib/skills-zh.json` —— 包内随附的中文表（key 为技能名，含 `phrases` 与 `summary`），服务端在扫描时把 `summary` 写进条目的 `zh` 字段；客户端列表用 `phrases`、悬停用 `zh` + 原文。该表的指纹写进缓存签名，换表后自动重扫（不必等周一）。
 - 两份数据按名称求并集合并展示（实时目录优先），因此既能显示会话可调用的技能，也能显示仅用户可调用或机器上其他根目录的技能。
 
 ## 缓存与刷新策略

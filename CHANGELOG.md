@@ -12,18 +12,28 @@
 
 ### 新增
 
+- **英文技能的中文短语与中文说明**：本机 175 个技能里有 139 个的 `SKILL.md` 是英文，
+  规则短语只能截出 `Use when`、`adding A` 这类片段，看不出技能能做什么。现在随包分发
+  `lib/skills-zh.json`（139 条，key 为技能名）：列表第二行改为中文短语，悬停浮层把
+  **中文说明排在最前**、英文原文与 `whenToUse` 保留在后（浮层在桌面小窗口里会被限高截断，
+  中文不能被截掉）。技能名保持英文原样 —— 它就是 `/技能名` 的调用标识。
+  该表的指纹（`_meta.version`）写进缓存签名，换表后自动重扫，不必等到周一。
 - **桌面版（desktop profile）支持**：桌面版渲染的就是同一套 Web 前端，只是页面挂在 `dsh-app://app/`
   协议下、窗口通常远小于浏览器窗口。经实测：客户端两段式注册（`ctx.sidebarRightTabs.register`
   + `sidebar.right.pane.tab` / `.title`）与服务端 `webServer` 路由在桌面版**完全一致**；
   `fetch('/skillpanel/skills')` 由 Electron 主进程带认证 cookie 转发给本地 webserver
   （与 dsh-quick-prompts 的 `/api/quick-prompts` 同一通道），因此数据源无需改动。
+  **例外**：`webServer.tapIndex`（`window.__DSH_SKILLS__` 首屏注入）在桌面端不生效 ——
+  Electron 直接读取打包好的前端，不经过 index 变换管道；桌面端首屏由 localStorage 快照与
+  实时目录承担，功能不受影响。
 - `install-desktop.ps1`：应用**未运行**时，用桌面自带的 CLI 载体
   （`app.asar` 内的 `dsh-desktop-host/lib/cli.js`，带 `manageDesktopProfile` 权限）把本插件安装到
   `$DSH_HOME/profiles/desktop`；支持 `-Mode Link|Tarball`、`-Uninstall`、`-WhatIf`。
   应用**运行中**则走应用内插件管理（设置 → 插件）或 DSH 助手的 plugin_manager 工具，**无需重启**。
-- `dsh.plugin.json`：插件元数据（entry 与 client platform），与其他双端插件一致。
-- `test-desktop.mjs`：桌面适配回归 —— 外壳识别、浮层几何（翻转 / 夹紧 / 限高 / 退化）、
-  桌面端槽位注册端到端、底部外壳标识。
+- `dsh.plugin.json`：随包元数据（entry 与 client platform），与 dsh-quick-prompts 的写法一致。
+  说明：本 build 的宿主并不读取该文件（`app.asar` 中零引用），它只是给插件市场/工具预留的描述，不影响加载。
+- `test-desktop.mjs`：桌面适配回归 —— 外壳识别、浮层几何（字宽模型 / 翻转 / 夹紧 / 限高 / 退化）、
+  桌面端槽位注册端到端、底部外壳标识、关键 CSS 静态断言。
 
 ### 变更
 
@@ -31,6 +41,10 @@
   限高。旧实现只把中心点夹在视口内，300px 宽的浮层在窄窗口里仍会越出右边缘。
   浮层保持 `pointer-events:none`（不抢被悬停行的鼠标事件），因此限高后无法滚动 ——
   超出可视空间的描述由 `fitTipText` 截断并加省略号，而不是被裁在半行。
+- **高度模型按脚本区分字宽**：11.5px 字号下汉字约 11.5px、拉丁约 6.2px（Microsoft YaHei 实测）。
+  旧模型一律按 6.6px/字估算，对中文低估约 1.7×。
+- **高度预算改为"实际可用空间"**：估算值只用于决定向上/向下翻转，不再当作 max-height 上限 ——
+  否则估算误差会直接变成被裁掉的正文。
 - **窄栏里的技能名改为省略显示**：`.dss-name` 由 `flex:none` 改为可收缩 + `text-overflow:ellipsis`，
   否则长技能名会把置顶 / 复制按钮挤出右侧边栏可视区；`.dss-foot` 允许换行。
 - 列表底部新增运行外壳标识（桌面版 / 浏览器），与来源信息并列，便于确认插件在哪一端生效。
@@ -38,9 +52,26 @@
 
 ### 修复
 
-- `test-host.mjs` 不再依赖本机特定技能：原先固定断言 `lark-calendar` 存在并命中手写短语，
-  该技能被卸载后测试误报失败。现改为验证「中文描述被解析出来」与「手写短语表仍命中已安装技能」；
-  `sorted by name` 也改为与实现的 `localeCompare` 语义一致（此前用码位比较，恒失败）。
+**独立审查发现并修复的缺陷**（对抗性审查跑在真实方案上，含字体度量与 asar 取证）：
+
+- **长中文说明被硬裁且不可达**（高）：高度模型按拉丁字宽估算，175 个技能里 30 个（17%）的真实
+  渲染高度超过预算；又因为 `max-height` 用的是估算值、浮层 `pointer-events:none` 不可滚动，
+  被裁的内容永久看不到。现按脚本加权估算 + 用可用空间作预算 + 必要时截断加省略号：
+  同一探针下典型桌面窗口需要截断的技能从 30 个降到 2 个，且这 2 个是真实空间不足。
+- **浮层被固定成 300px 宽**（中）：内联 `width` 使 4 个字的短描述渲染成 300px 空盒（本轮引入的
+  视觉回归，web 与桌面都受影响）。改为 `maxWidth`，盒子仍然贴合内容。
+- **极端几何越界/NaN**（低）：视口窄于最小宽度时宽度会越界、上下空间都小于最小高度时浮层会
+  顶出窗口、`rect` 字段缺失或为 NaN 时定位为 NaN。现宽度随视口收缩并再次夹紧、预算按剩余空间
+  收缩、`rect` 数值统一归一化。
+- **剪贴板写失败也报"已复制"**（低）：`navigator.clipboard.writeText` 的 Promise 既没 await 也没
+  catch，桌面端拒绝写入时会假报成功且不回退。现 await 成功才提示，失败回退 `execCommand`。
+- 客户端合并排序改用 `localeCompare`，与服务端扫描排序一致（此前用码位排序，首屏与刷新后
+  的顺序可能不同）。
+- 请求跟踪日志（`DSH_SKILL_SIDEBAR_TRACE`）的 UA 截断由 60 字符放宽到 160 —— 原来恰好截掉
+  `Electron/` 标记，桌面端命中无法自证。
+- `test-host.mjs` 不再依赖本机特定技能：原先固定断言 `lark-calendar` / `watch` 存在并命中手写短语，
+  技能被卸载后测试误报失败（`sorted by name` 也改为与实现的 `localeCompare` 语义一致）。
+  现在手写短语表按"表本身的键"验证，扫描结果只做"命中则交叉核对"。
 
 ### 测试
 
@@ -49,8 +80,8 @@
 | 测试 | 覆盖 |
 |---|---|
 | `node test-client.mjs` | official 侧边栏两段式注册、自动打开重试、主体渲染、合并 / 缓存 / 置顶 |
-| `node test-host.mjs` | frontmatter 解析、真实技能根扫描、路由与围栏、watcher 自动新增、缓存落盘 |
-| `node test-desktop.mjs` | 桌面外壳识别、浮层几何、桌面端槽位注册与悬停写回、底部外壳标识 |
+| `node test-host.mjs` | frontmatter 解析、真实技能根扫描、中文表接入、路由与围栏、watcher 自动新增、缓存落盘 |
+| `node test-desktop.mjs` | 桌面外壳识别、字宽模型（独立期望值）与浮层几何、极端几何、桌面端槽位注册与悬停写回、关键 CSS 静态断言 |
 
 ### 实测记录（Windows 11 + DeepSeek Harness 桌面版）
 

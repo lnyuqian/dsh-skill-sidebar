@@ -295,6 +295,10 @@ function withImmediateTimers(body) {
   const full = I.fullTextOf({ description: '完整描述文本', whenToUse: 'x 时使用' })
   check('fullTextOf joins description + whenToUse', full.includes('完整描述文本') && full.includes('适用：x 时使用'), JSON.stringify(full))
   check('fullTextOf handles missing whenToUse', I.fullTextOf({ description: '只有描述' }) === '只有描述')
+  // 英文技能的随包中文说明排在最前（悬停浮层会被限高截断，中文不能被截掉）
+  const bilingual = I.fullTextOf({ zh: '一句话中文说明。', description: 'Use when building something.', whenToUse: 'x' })
+  check('fullTextOf puts the Chinese summary first', bilingual.split('\n')[0] === '一句话中文说明。', JSON.stringify(bilingual))
+  check('fullTextOf keeps the original description after it', bilingual.includes('Use when building something.'))
 }
 
 /* ---- pins ---- */

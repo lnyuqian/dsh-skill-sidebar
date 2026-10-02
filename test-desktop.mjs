@@ -14,6 +14,9 @@
  * 运行：node test-desktop.mjs
  */
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const SRC = readFileSync(new URL('./lib/client.js', import.meta.url), 'utf8')
 
 let handoff = null
 globalThis.window = {
@@ -104,6 +107,20 @@ const I = mod.internals
 {
   const vp = { width: 1280, height: 800 }
 
+  // 字宽模型必须区分汉字与拉丁：11.5px 字号下汉字 ~11.5px、拉丁 ~6.2px。
+  // 这些期望值来自真实字体度量（Microsoft YaHei @11.5px），与实现内部公式无关，
+  // 若实现退化回"所有字符都按拉丁算"，这里会立刻失败。
+  const one = I.TIP_PAD_Y + I.TIP_LINE_H
+  check(
+    '汉字按 ~11.5px 估算（280px 内容宽一行 24 字、26 字两行）',
+    I.estimateTipHeight('中'.repeat(24), 300) === one && I.estimateTipHeight('中'.repeat(26), 300) === I.TIP_PAD_Y + 2 * I.TIP_LINE_H,
+    { c24: I.estimateTipHeight('中'.repeat(24), 300), c26: I.estimateTipHeight('中'.repeat(26), 300) },
+  )
+  check('拉丁按 ~6.2px 估算（45 字一行）', I.estimateTipHeight('a'.repeat(45), 300) === one, I.estimateTipHeight('a'.repeat(45), 300))
+  check('同长度中文比英文高', I.estimateTipHeight('中'.repeat(60), 300) > I.estimateTipHeight('a'.repeat(60), 300))
+  check('汉字字宽大于拉丁字宽', I.tipCharWidth('中') > I.tipCharWidth('a'), { cjk: I.tipCharWidth('中'), latin: I.tipCharWidth('a') })
+  check('换行符按新行计入', I.tipLineCount('a\nb', 300) === 2, I.tipLineCount('a\nb', 300))
+
   // 行在窗口中下部且描述短：上方放得下 → 向上展开、不限高、居中不夹紧
   const up = I.computeTipPos({ left: 600, top: 600, bottom: 626, width: 200 }, vp, '短描述')
   check('上方空间充足：向上展开且不压缩高度', up.above === true, up)
@@ -162,6 +179,20 @@ const I = mod.internals
   )
   check('空间足够时不改动文本', I.fitTipText('短描述', I.TIP_MAX_W, 200) === '短描述')
   check('空文本不抛错', I.fitTipText(null, I.TIP_MAX_W, 80) === '' && I.fitTipText('', 140, 80) === '')
+
+  // 极限几何：视口比最小宽度还窄、上下空间都小于最小高度 —— 不得越界
+  const tiny = I.computeTipPos({ left: 0, top: 30, bottom: 56, width: 40 }, { width: 100, height: 80 }, '中文描述')
+  check('极窄视口：浮层宽度不超过视口', tiny.width <= 100, tiny)
+  check(
+    '极窄视口：水平中心落在视口内',
+    tiny.left - tiny.width / 2 >= -0.001 && tiny.left + tiny.width / 2 <= 100 + 0.001,
+    tiny,
+  )
+  check('极扁视口：高度预算不超过剩余空间', tiny.maxHeight <= 80, tiny)
+  const nan = I.computeTipPos({ left: NaN, top: NaN, bottom: NaN, width: NaN }, { width: 420, height: 720 }, 'x')
+  check('rect 字段为 NaN 时不产生 NaN 定位', Number.isFinite(nan.left) && Number.isFinite(nan.top) && Number.isFinite(nan.maxHeight), nan)
+  const partial = I.computeTipPos({ top: 100 }, { width: 420, height: 720 }, 'x')
+  check('rect 字段缺失时不产生 NaN 定位', Number.isFinite(partial.left) && Number.isFinite(partial.top) && Number.isFinite(partial.maxHeight), partial)
 
   // 拿不到行矩形（初始渲染）时安全退化
   const none = I.computeTipPos(null, vp, '描述')
@@ -257,7 +288,7 @@ try {
 }
 
 const skills = [
-  { name: 'firecrawl-search', description: '网页搜索', phrases: ['网页搜索', '整页内容'] },
+  { name: 'firecrawl-search', description: 'Web search with full page content.', zh: '网页搜索与整页抓取，适合找资料。', phrases: ['网页搜索', '整页抓取'] },
   { name: 'photom', description: '图像处理', phrases: ['图像处理'] },
 ]
 
@@ -312,6 +343,8 @@ function collect(node, pred, out = []) {
   check('浮层水平中心不越出左边界', tip.left - tip.width / 2 >= I.TIP_MARGIN - 0.001, tip)
   check('浮层限高为有限值', Number.isFinite(tip.maxHeight) && tip.maxHeight > 0, tip)
   check('浮层带完整功能文本', typeof tip.text === 'string' && tip.text.includes('网页搜索'), tip.text)
+  check('浮层把中文说明排在最前', tip.text.split('\n')[0] === '网页搜索与整页抓取，适合找资料。', tip.text.split('\n')[0])
+  check('浮层保留英文原文', tip.text.includes('Web search with full page content.'))
   ok('桌面端悬停：浮层状态被夹紧在 420px 窗口内')
 
   // 浏览器宽窗口对照：同一行不再夹紧（水平中心就是行中心）
@@ -339,6 +372,19 @@ function collect(node, pred, out = []) {
     tree.props.className === 'dss-root' && tree.props['data-dsh-skill-sidebar'] === 'body',
     tree.props,
   )
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. 样式契约（三套测试都不加载 CSS，这里直接对源码做静态断言）          */
+/* ------------------------------------------------------------------ */
+{
+  check('浮层 CSS 裁断而非滚动（浮层不可命中，滚动没有意义）', /\.dss-tip-fixed\{[^}]*overflow:hidden/.test(SRC))
+  check('浮层 CSS 不设裸 width（靠 max-width 收缩）', !/\.dss-tip-fixed\{[^}]*\b(?<!max-)width:\s*\d/.test(SRC))
+  check('技能名 CSS 允许收缩', /\.dss-name\{[^}]*min-width:0/.test(SRC))
+  check('技能名 CSS 省略号显示', /\.dss-name\{[^}]*text-overflow:ellipsis/.test(SRC))
+  check('技能名 CSS 不换行', /\.dss-name\{[^}]*white-space:nowrap/.test(SRC))
+  check('页脚 CSS 允许换行（窄栏下不撑破）', /\.dss-foot\{[^}]*flex-wrap:wrap/.test(SRC))
+  check('浮层内联样式用 maxWidth 而非 width', /maxWidth:\s*tip\.width/.test(SRC) && !/\bwidth:\s*tip\.width/.test(SRC))
 }
 
 console.log('\n全部通过：' + passed + ' 项')
