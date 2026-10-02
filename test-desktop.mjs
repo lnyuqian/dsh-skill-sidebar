@@ -331,6 +331,14 @@ function collect(node, pred, out = []) {
   const rows = collect(tree, (n) => n.props && n.props.className === 'dss-row')
   check('桌面窗口下渲染出技能行', rows.length === skills.length, rows.length)
 
+  // 中文表已内联进客户端 bundle：桌面端宿主未重启也能显示中文
+  const phraseNodes = collect(tree, (n) => n.props && n.props.className === 'dss-phrases')
+  check(
+    '第二行渲染内联中文短语（无需重启宿主）',
+    phraseNodes.length > 0 && JSON.stringify(phraseNodes[0].children).includes('网页搜索'),
+    phraseNodes[0] && phraseNodes[0].children,
+  )
+
   // 行在窗口中下部、且偏右：写回的浮层状态必须完整落在可视区内
   rows[0].props.onMouseEnter({
     currentTarget: { getBoundingClientRect: () => ({ left: 380, top: 600, bottom: 626, width: 120 }) },

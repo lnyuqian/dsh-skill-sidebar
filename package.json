@@ -15,6 +15,7 @@
   },
   "files": [
     "lib",
+    "scripts",
     "cordis.patch.yml",
     "dsh.plugin.json",
     "install-desktop.ps1",

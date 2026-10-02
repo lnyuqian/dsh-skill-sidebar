@@ -13,6 +13,8 @@
  *  - the body component consumes the framework `useTabInfo()` hook and renders;
  *  - the pure helpers (mergeLists, phraseRow, cache round-trip, Monday).
  */
+import { readFileSync } from 'node:fs'
+
 let handoff = null
 globalThis.window = {
   __ModuleLoader__: {
@@ -338,6 +340,36 @@ function withImmediateTimers(body) {
   check('todayStr format', /^\d{4}-\d{2}-\d{2}$/.test(I.todayStr()))
   check('POLL_MS sane', I.POLL_MS >= 5000 && I.POLL_MS <= 120000)
   check('AUTO_OPEN on by default', I.AUTO_OPEN === true)
+}
+
+/* ---- inlined Chinese table (mirrors lib/skills-zh.json) ---- */
+{
+  const I = mod.internals
+  const table = JSON.parse(readFileSync(new URL('./lib/skills-zh.json', import.meta.url), 'utf8'))
+  const names = Object.keys(table).filter((k) => k !== '_meta')
+  const inline = I.ZH_INLINE
+  check(
+    'inlined table matches lib/skills-zh.json (count)',
+    Object.keys(inline).length === names.length,
+    `${Object.keys(inline).length} vs ${names.length}`,
+  )
+  const drift = names.filter((n) => JSON.stringify(inline[n]) !== JSON.stringify(table[n]))
+  check('inlined table matches lib/skills-zh.json (content)', drift.length === 0, JSON.stringify(drift.slice(0, 5)))
+  check('client.js carries the generated @zh-inline block', typeof inline === 'object' && Object.keys(inline).length > 100, String(Object.keys(inline).length))
+
+  const sample = names[0]
+  const source = { name: sample, description: 'English text.', phrases: ['Old latin phrase'] }
+  const localized = I.applyZh(source)
+  check('applyZh replaces the phrases with the Chinese ones', JSON.stringify(localized.phrases) === JSON.stringify(table[sample].phrases), JSON.stringify(localized.phrases))
+  check('applyZh adds the Chinese summary', localized.zh === table[sample].summary, JSON.stringify(localized.zh))
+  check('applyZh keeps the original description', localized.description === 'English text.')
+  check('applyZh does not mutate the source entry', source.phrases.join(',') === 'Old latin phrase' && source.zh === undefined)
+  // 宿主重启后会自带 zh：此时客户端不得覆盖服务端给的值（同一份来源，幂等）
+  const hostProvided = I.applyZh({ name: sample, zh: '宿主的说明', phrases: ['x'] })
+  check('applyZh keeps a host-provided summary', hostProvided.zh === '宿主的说明', JSON.stringify(hostProvided.zh))
+  const unknown = { name: 'definitely-not-in-the-table-xyz', phrases: ['a'] }
+  check('applyZh leaves uncovered skills untouched', I.applyZh(unknown) === unknown)
+  check('applyZh tolerates junk input', I.applyZh(null) === null && typeof I.applyZh({}) === 'object')
 }
 
 console.log(failures === 0 ? '\nALL CLIENT CHECKS PASSED' : `\n${failures} CLIENT CHECK(S) FAILED`)

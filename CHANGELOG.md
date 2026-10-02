@@ -18,6 +18,10 @@
   **中文说明排在最前**、英文原文与 `whenToUse` 保留在后（浮层在桌面小窗口里会被限高截断，
   中文不能被截掉）。技能名保持英文原样 —— 它就是 `/技能名` 的调用标识。
   该表的指纹（`_meta.version`）写进缓存签名，换表后自动重扫，不必等到周一。
+  **同一张表还会内联进客户端 bundle**（`node scripts/sync-zh.mjs` 生成 `lib/client.js` 的
+  `@zh-inline` 段）：客户端 bundle 由 `client-hmr` 热重载，而宿主半侧只有重启应用才会重新 import，
+  内联让两端在改表后都立即显示中文，不必为了换一张表重启应用；宿主重启后服务端数据自带 `zh`，
+  客户端合并对两者是幂等的（两侧同源，一致性由 `test-client.mjs` 断言）。搜索同时覆盖中文说明与短语。
 - **桌面版（desktop profile）支持**：桌面版渲染的就是同一套 Web 前端，只是页面挂在 `dsh-app://app/`
   协议下、窗口通常远小于浏览器窗口。经实测：客户端两段式注册（`ctx.sidebarRightTabs.register`
   + `sidebar.right.pane.tab` / `.title`）与服务端 `webServer` 路由在桌面版**完全一致**；
@@ -79,7 +83,7 @@
 
 | 测试 | 覆盖 |
 |---|---|
-| `node test-client.mjs` | official 侧边栏两段式注册、自动打开重试、主体渲染、合并 / 缓存 / 置顶 |
+| `node test-client.mjs` | official 侧边栏两段式注册、自动打开重试、主体渲染、合并 / 缓存 / 置顶、内联中文表与 `skills-zh.json` 的一致性、`applyZh` 幂等 |
 | `node test-host.mjs` | frontmatter 解析、真实技能根扫描、中文表接入、路由与围栏、watcher 自动新增、缓存落盘 |
 | `node test-desktop.mjs` | 桌面外壳识别、字宽模型（独立期望值）与浮层几何、极端几何、桌面端槽位注册与悬停写回、关键 CSS 静态断言 |
 

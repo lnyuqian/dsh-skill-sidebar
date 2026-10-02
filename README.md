@@ -18,6 +18,7 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 - **目录扩展扫描**：扫描本机 4 个技能目录 —— `.agents/skills`（公共）、`.codex/skills`、`.claude/skills`、`.opencode/skills`（后三个均可用环境变量 `DSH_CODEX_SKILL_DIR` / `DSH_CLAUDE_SKILL_DIR` / `DSH_OPENCODE_SKILL_DIR` 覆盖）；同名技能以 `.agents` 优先去重（`.claude` 的 junction 软链接不重复显示）。各目录类型均支持 `$DSH_SKILL_DIRS` 追加。
 - **短语来源**：插件自带 `lib/phrases.json`（为中文技能手写的 4-6 字短语清单）与 `lib/skills-zh.json`（为**英文** SKILL.md 技能提供的中文短语 + 一句话中文说明，随包分发）；两者都没有的新安装技能自动用规则从描述中拆分生成短语（按标点切分、取每段前 6 字、去重、最多 6 条）。解析自动处理 UTF-8 BOM 与 GBK 编码文件。
 - **中文化（v0.3.0）**：本机多数技能的 `SKILL.md` 是英文，规则短语只能截出 `Use when`、`adding A` 这类片段。现在列表第二行显示随包的中文短语（如 `网页搜索，整页抓取，资料检索`），悬停浮层把**中文说明排在最前**、英文原文与 `whenToUse` 保留在后；技能名保持英文原样，因为它就是 `/技能名` 的调用标识。中文技能沿用 `phrases.json` 的手写短语，不受影响。
+  中文表同时由 `scripts/sync-zh.mjs` **内联进客户端 bundle**（`lib/client.js` 的 `@zh-inline` 段）：客户端 bundle 走 `client-hmr` 即时重载，而宿主半侧只有重启应用才会重新加载，内联让两端都在改表后立刻显示中文；宿主重启后服务端数据自带 `zh`，客户端合并是幂等的（两侧同源于 `lib/skills-zh.json`，一致性由测试断言）。搜索也覆盖中文说明与短语。
 - **立即列出，无需等待**：服务端把技能列表直接注入页面（`window.__DSH_SKILLS__`），同时持久化到浏览器 localStorage 与会话缓存文件，再次启动打开选项卡即可瞬间渲染，无需网络往返。**桌面版例外**：Electron 直接读取打包好的前端（`dsh-app://app/` 由 `serveWebDocument` 提供），不经过 `webServer` 的 index 变换管道，因此该首屏注入在桌面端不生效 —— 桌面端首屏来自 localStorage 快照与实时目录，随后由 `/skillpanel/skills` 补齐（功能不受影响，只是没有"零请求"那一层）。
 - **自动添加新技能**：4 个技能目录被 `fs.watch` 监听（含父目录），新技能安装后自动重新扫描；标签页可见期间每 30 秒后台刷新一次实时目录；缓存随目录集合变化自动失效重扫。
 - **每周一重新读取**：周一时服务端强制对全部技能做一次全量重读；此后每 6 小时校验一次，若缓存早于当天则再次刷新。
@@ -141,6 +142,9 @@ node test-host.mjs
 
 # 桌面版适配测试（外壳识别、浮层几何、桌面端槽位注册端到端）
 node test-desktop.mjs
+
+# 改了 lib/skills-zh.json 之后，把它重新内联进客户端 bundle（否则客户端仍是旧表）
+node scripts/sync-zh.mjs
 
 # 三套一起
 npm test
