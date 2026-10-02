@@ -62,19 +62,30 @@ console.log('\n[2] scanning real skill roots')
   const skills = await internals.scanSkills()
   console.log(`  found ${skills.length} skills`)
   check('found skills', skills.length > 30, `only ${skills.length}`)
-  const sample = skills.find((s) => s.name === 'lark-calendar')
-  check('lark-calendar present with Chinese description', !!sample && typeof sample.description === 'string' && sample.description.length > 5, JSON.stringify(sample))
+  // Skill names differ per machine (a previously present skill may be
+  // uninstalled), so assert the property instead of one fixed skill name.
+  const cjkSample = skills.find((s) => /[\u4e00-\u9fff]/.test(s.description || ''))
+  check('Chinese description parsed (any skill)', !!cjkSample && cjkSample.description.length > 5, JSON.stringify(cjkSample))
   const watch = skills.find((s) => s.name === 'watch')
   check('watch present with English description', !!watch && watch.description.startsWith('Watch a video'), JSON.stringify(watch))
   const names = skills.map((s) => s.name)
-  check('sorted by name', names.every((n, i) => i === 0 || names[i - 1] <= n))
+  check('sorted by name (locale-aware)', names.every((n, i) => i === 0 || names[i - 1].localeCompare(n) <= 0))
   check('no duplicate names', new Set(names).size === names.length)
   const bad = skills.filter((s) => !s.name || !s.description)
   check('every entry has name+description', bad.length === 0, JSON.stringify(bad.slice(0, 3)))
   const noPhrases = skills.filter((s) => !Array.isArray(s.phrases) || s.phrases.length === 0)
   check('every entry has phrases', noPhrases.length === 0, JSON.stringify(noPhrases.map((s) => s.name)))
-  const larkCal = skills.find((s) => s.name === 'lark-calendar')
-  check('lark-calendar uses hand-written phrases', !!larkCal && larkCal.phrases.includes('日程管理'), JSON.stringify(larkCal && larkCal.phrases))
+  // The hand-written table outlives individual skills, so verify it through the
+  // skills that are actually installed instead of a fixed name.
+  const handWritten = JSON.parse(readFileSync(new URL('./lib/phrases.json', import.meta.url), 'utf8'))
+  const handName = Object.keys(handWritten).find((n) => names.indexOf(n) !== -1)
+  check('hand-written phrase table still matches an installed skill', !!handName, `table=${Object.keys(handWritten).length} skills=${names.length}`)
+  const handSkill = handName ? skills.find((s) => s.name === handName) : null
+  check(
+    'a hand-written skill uses the table phrases',
+    !!handSkill && JSON.stringify(handSkill.phrases) === JSON.stringify(handWritten[handName]),
+    JSON.stringify(handSkill && handSkill.phrases),
+  )
   const phraseLen = skills.every((s) => s.phrases.every((p) => p.length <= 8))
   check('all phrases are short (<=8 chars)', phraseLen)
 }

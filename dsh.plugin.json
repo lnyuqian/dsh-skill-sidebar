@@ -1,0 +1,19 @@
+{
+  "name": "dsh-skill-sidebar",
+  "description": "技能侧边栏（web 版 / 桌面版通用）：在 DSH 官方右侧边栏新增「技能」标签页，列出本机可读取的全部技能与 4-6 字功能短语，支持置顶、搜索、一键复制 /技能名；含本机扫描缓存、自动发现新技能与每周一全量重读",
+  "version": "0.3.0",
+  "entry": {
+    "name": "dsh-skill-sidebar",
+    "inject": [
+      "webServer",
+      "loader"
+    ]
+  },
+  "client": {
+    "platform": "web",
+    "inject": [
+      "@deepseek-ai/dsh-client-runtime",
+      "@deepseek-ai/dsh-client-ui-sidebar-right"
+    ]
+  }
+}

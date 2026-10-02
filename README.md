@@ -1,8 +1,8 @@
 # dsh-skill-sidebar
 
-**English**: A DSH Web plugin that adds a "Skills" page tab to DSH's **official right Sidebar** (`@deepseek-ai/dsh-client-ui-sidebar-right`, the docking tab surface added in DSH `0.1.5-rc.1`). It scans the local skill directories (`.agents/skills`, `.codex/skills`, `.claude/skills`, `.opencode/skills`), lists every skill with a short 4–6 character phrase describing what it does, and offers one-click copy of the `/skill-name` trigger syntax, pinning, directory tags, live re-scan on new skills, and instant rendering from cache. As of `v0.2.0` it registers through the official two-stage tab-type API and no longer depends on the third-party `betterSidebar` service.（中文说明见下）
+**English**: A DSH plugin (web **and Desktop**) that adds a "Skills" page tab to DSH's **official right Sidebar** (`@deepseek-ai/dsh-client-ui-sidebar-right`, the docking tab surface added in DSH `0.1.5-rc.1`). It scans the local skill directories (`.agents/skills`, `.codex/skills`, `.claude/skills`, `.opencode/skills`), lists every skill with a short 4–6 character phrase describing what it does, and offers one-click copy of the `/skill-name` trigger syntax, pinning, directory tags, live re-scan on new skills, and instant rendering from cache. It runs unchanged inside the **DeepSeek Harness desktop client** (Electron, `dsh-app://app/` shell), where only the hover overlay geometry differs. As of `v0.2.0` it registers through the official two-stage tab-type API and no longer depends on the third-party `betterSidebar` service；as of `v0.3.0` it is dual-shell（中文说明见下）。
 
-DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-sidebar-right`，官方新增的可停靠标签页系统）中新增一个「技能」标签页，列出本机可读取的全部技能，并以简短描述介绍每个技能的功能。
+DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-sidebar-right`，官方新增的可停靠标签页系统）中新增一个「技能」标签页，列出本机可读取的全部技能，并以简短描述介绍每个技能的功能。桌面版（DeepSeek Harness Desktop，Electron）渲染同一套前端，因此**同一份代码两端通用**，仅悬停浮层按窗口尺寸自适应。
 
 > v0.2.0 起从第三方 `dsh-better-sidebar` 面板迁移到官方侧边栏；不再依赖 `betterSidebar` 服务。版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
 
@@ -20,6 +20,40 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 - **立即列出，无需等待**：服务端把技能列表直接注入页面（`window.__DSH_SKILLS__`），同时持久化到浏览器 localStorage 与会话缓存文件，再次启动打开选项卡即可瞬间渲染，无需网络往返。
 - **自动添加新技能**：4 个技能目录被 `fs.watch` 监听（含父目录），新技能安装后自动重新扫描；标签页可见期间每 30 秒后台刷新一次实时目录；缓存随目录集合变化自动失效重扫。
 - **每周一重新读取**：周一时服务端强制对全部技能做一次全量重读；此后每 6 小时校验一次，若缓存早于当天则再次刷新。
+- **桌面版（v0.3.0）**：同一份代码在 **DeepSeek Harness 桌面版**里运行 —— 页面挂在 `dsh-app://app/` 协议下，相对 `fetch('/skillpanel/skills')` 由 Electron 主进程带认证 cookie 转发给本地 webserver，槽位注册与数据通道与 web 版完全一致；仅悬停浮层按窗口尺寸自适应（左右夹紧、上下翻转、限高，超出空间的描述截断为省略号），长技能名在窄栏里省略显示而不是把操作按钮挤出可视区，页脚显示当前运行外壳（桌面版 / 浏览器）。
+
+## 桌面版（DeepSeek Harness Desktop）
+
+桌面版是 Electron 外壳 + 内置本地 webserver，**渲染同一套 Web 前端**，插件通过 `~/.dsh/profiles/desktop` 这个独立 profile 装载（与 `profiles/web` 互不影响）。
+
+| 项目 | web 版 | 桌面版 |
+|---|---|---|
+| profile | `$DSH_HOME/profiles/web` | `$DSH_HOME/profiles/desktop`（由 Electron 独占管理） |
+| 页面来源 | `http://127.0.0.1:<port>`（浏览器访问） | `dsh-app://app/`（Electron 窗口） |
+| 插件安装 | `dsh plugin --profile web add …` | 应用内插件管理（设置 → 插件）或 `install-desktop.ps1` |
+| 侧边栏契约 | 官方 `sidebar.right.pane.tab(.title)` + `sidebarRightTabs` | **完全相同** |
+| 数据通道 | `fetch('/skillpanel/skills')` | **相同**（`dsh-app://` 下由主进程代理并带认证 cookie） |
+| 差异 | — | 窗口通常更小 → 浮层几何自适应、窄栏技能名省略 |
+
+安装（桌面版已运行时，**无需重启**）：
+
+```powershell
+# 方式一：应用内插件管理 —— 设置 → 插件，或让 DSH 助手用 plugin_manager 工具安装
+#         本次开发即用这条路：安装 link 指向本仓库后宿主热重组，右栏立即出现「技能」标签页
+
+# 方式二：应用完全退出后，用桌面自带的 CLI 载体安装
+pwsh -File .\install-desktop.ps1                    # link 安装（开发）
+pwsh -File .\install-desktop.ps1 -Mode Tarball      # 从 tgz 安装（分发）
+pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
+```
+
+在桌面版里确认已生效：
+
+- 右侧边栏出现「技能」标签页（新会话会自动打开一次），或从右栏「开始」指南页点「技能」胶囊进入；
+- 列表底部显示「桌面版」与技能来源（本机 / 实时 / 缓存）；
+- 服务端缓存落在 `$DSH_HOME/storages/dsh-skill-sidebar/skills.json`，说明宿主半侧已扫描完成。
+
+> 桌面版与 web 版共用同一份 `lib/`：没有平台分叉代码，`dsh.client.platform` 仍是 `"web"`（桌面版同样按 web 平台客户端加载，与 dsh-mobile、dsh-quick-prompts 一致）。
 
 ## 与官方侧边栏的契约
 
@@ -62,26 +96,36 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 ## 安装 / 卸载
 
 ```bash
-# 安装：把 <本包绝对路径> 换成本仓库在本机的路径（link: 安装，改源码后重启即生效）
+# web 版：把 <本包绝对路径> 换成本仓库在本机的路径（link: 安装，改源码后重启即生效）
 dsh plugin --profile web add link:<本包绝对路径>
 
-# 卸载
+# web 版卸载
 dsh plugin --profile web remove dsh-skill-sidebar
 ```
 
-安装/卸载后需**重启 dsh web 并硬刷新**（Ctrl/Cmd+Shift+R）。依赖以 `link:` 形式指向本目录，改动源码后重启即可生效（无需重新安装）。
+```powershell
+# 桌面版（desktop profile 由 Electron 独占管理，全局 dsh CLI 会拒绝操作）：
+#   应用运行中 → 设置 → 插件（或 DSH 助手用 plugin_manager 工具），无需重启
+#   应用已退出 → 用本仓库脚本
+pwsh -File .\install-desktop.ps1                 # link 安装
+pwsh -File .\install-desktop.ps1 -Uninstall      # 卸载
+```
+
+web 版安装/卸载后需**重启 dsh web 并硬刷新**（Ctrl/Cmd+Shift+R）；桌面版通过应用内插件管理安装是热生效的（宿主重组后页面按需加载新 bundle），用脚本安装则在启动桌面版后生效。依赖以 `link:` 形式指向本目录，改动源码后重启/重载即可生效（无需重新安装）。
 
 ## 平台支持
 
 | 平台 | 状态 |
 |---|---|
-| Windows 11 | ✅ 已验证（DSH `0.1.5-rc.1`） |
+| Windows 11 + DSH web（浏览器） | ✅ 已验证（DSH `0.2.0-rc.2`） |
+| Windows 11 + DeepSeek Harness 桌面版 | ✅ 已验证（desktop profile；两段式注册与 host 路由实测生效） |
 | macOS | ⚠️ 未测试 |
 
 插件只用 Node 的跨平台 API（`node:path` 的 `join()`、`node:os` 的 `homedir()`）与
 `DSH_HOME` / `DSH_AGENTS_HOME` / `DSH_SKILL_DIRS` / `DSH_SKILL_CACHE_DIR` 等环境变量定位文件：
-没有平台专有路径，也不假设路径分隔符（技能根目录一律用 `join()` 拼接）。客户端部分只在浏览器里运行，
-与操作系统无关。可选的请求跟踪日志默认关闭，需显式设置 `DSH_SKILL_SIDEBAR_TRACE`（见「路由」）。
+没有平台专有路径，也不假设路径分隔符（技能根目录一律用 `join()` 拼接）。客户端部分只在 Web 运行时（浏览器或
+桌面版 Electron 渲染进程）里运行，与操作系统无关，也不区分两种外壳 —— 只有浮层几何按窗口尺寸自适应。
+可选的请求跟踪日志默认关闭，需显式设置 `DSH_SKILL_SIDEBAR_TRACE`（见「路由」）。
 
 ## 开发
 
@@ -91,6 +135,12 @@ node test-client.mjs
 
 # 服务端逻辑测试（frontmatter 解析、扫描、路由、watcher、缓存）
 node test-host.mjs
+
+# 桌面版适配测试（外壳识别、浮层几何、桌面端槽位注册端到端）
+node test-desktop.mjs
+
+# 三套一起
+npm test
 ```
 
 `lib/client.js` 使用 DSH 客户端模块表格式（`window.__ModuleLoader__.load`），手写无需构建；`lib/index.js` 为纯 Node ESM，无第三方依赖。

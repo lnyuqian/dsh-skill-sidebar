@@ -1,7 +1,7 @@
 {
   "name": "dsh-skill-sidebar",
-  "version": "0.2.1",
-  "description": "DSH web plugin: a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar (@deepseek-ai/dsh-client-ui-sidebar-right) that lists all locally readable skills with short Chinese descriptions. Persists a cache so the list appears instantly on startup, auto-adds newly installed skills, and re-scans all skills every Monday.",
+  "version": "0.3.0",
+  "description": "DSH plugin (web + Desktop): a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar (@deepseek-ai/dsh-client-ui-sidebar-right) that lists all locally readable skills with short Chinese descriptions. Persists a cache so the list appears instantly on startup, auto-adds newly installed skills, and re-scans all skills every Monday. Runs unchanged in the DSH desktop client (dsh-app:// shell), with a desktop-adapted hover overlay.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -16,8 +16,14 @@
   "files": [
     "lib",
     "cordis.patch.yml",
+    "dsh.plugin.json",
+    "install-desktop.ps1",
     "CHANGELOG.md"
   ],
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/client.js",
+    "test": "node test-client.mjs && node test-host.mjs && node test-desktop.mjs"
+  },
   "license": "MIT",
   "dsh": {
     "bundle": {

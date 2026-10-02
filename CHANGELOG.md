@@ -5,6 +5,59 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-10-02
+
+桌面版适配：同一个包现在同时运行在 DSH web（浏览器）与 **DeepSeek Harness 桌面版**（Electron）两端，
+不再需要分叉代码 —— 桌面差异集中在「外壳识别」与「浮层几何」两处。
+
+### 新增
+
+- **桌面版（desktop profile）支持**：桌面版渲染的就是同一套 Web 前端，只是页面挂在 `dsh-app://app/`
+  协议下、窗口通常远小于浏览器窗口。经实测：客户端两段式注册（`ctx.sidebarRightTabs.register`
+  + `sidebar.right.pane.tab` / `.title`）与服务端 `webServer` 路由在桌面版**完全一致**；
+  `fetch('/skillpanel/skills')` 由 Electron 主进程带认证 cookie 转发给本地 webserver
+  （与 dsh-quick-prompts 的 `/api/quick-prompts` 同一通道），因此数据源无需改动。
+- `install-desktop.ps1`：应用**未运行**时，用桌面自带的 CLI 载体
+  （`app.asar` 内的 `dsh-desktop-host/lib/cli.js`，带 `manageDesktopProfile` 权限）把本插件安装到
+  `$DSH_HOME/profiles/desktop`；支持 `-Mode Link|Tarball`、`-Uninstall`、`-WhatIf`。
+  应用**运行中**则走应用内插件管理（设置 → 插件）或 DSH 助手的 plugin_manager 工具，**无需重启**。
+- `dsh.plugin.json`：插件元数据（entry 与 client platform），与其他双端插件一致。
+- `test-desktop.mjs`：桌面适配回归 —— 外壳识别、浮层几何（翻转 / 夹紧 / 限高 / 退化）、
+  桌面端槽位注册端到端、底部外壳标识。
+
+### 变更
+
+- **悬停浮层改为按可视区自适应**：新增纯函数 `computeTipPos`，负责左右夹紧、按上下空间翻转、
+  限高。旧实现只把中心点夹在视口内，300px 宽的浮层在窄窗口里仍会越出右边缘。
+  浮层保持 `pointer-events:none`（不抢被悬停行的鼠标事件），因此限高后无法滚动 ——
+  超出可视空间的描述由 `fitTipText` 截断并加省略号，而不是被裁在半行。
+- **窄栏里的技能名改为省略显示**：`.dss-name` 由 `flex:none` 改为可收缩 + `text-overflow:ellipsis`，
+  否则长技能名会把置顶 / 复制按钮挤出右侧边栏可视区；`.dss-foot` 允许换行。
+- 列表底部新增运行外壳标识（桌面版 / 浏览器），与来源信息并列，便于确认插件在哪一端生效。
+- 页脚版本标记 `v13` → `v14`。
+
+### 修复
+
+- `test-host.mjs` 不再依赖本机特定技能：原先固定断言 `lark-calendar` 存在并命中手写短语，
+  该技能被卸载后测试误报失败。现改为验证「中文描述被解析出来」与「手写短语表仍命中已安装技能」；
+  `sorted by name` 也改为与实现的 `localeCompare` 语义一致（此前用码位比较，恒失败）。
+
+### 测试
+
+三套测试全绿（Windows 11 + DeepSeek Harness 桌面版）：
+
+| 测试 | 覆盖 |
+|---|---|
+| `node test-client.mjs` | official 侧边栏两段式注册、自动打开重试、主体渲染、合并 / 缓存 / 置顶 |
+| `node test-host.mjs` | frontmatter 解析、真实技能根扫描、路由与围栏、watcher 自动新增、缓存落盘 |
+| `node test-desktop.mjs` | 桌面外壳识别、浮层几何、桌面端槽位注册与悬停写回、底部外壳标识 |
+
+### 实测记录（Windows 11 + DeepSeek Harness 桌面版）
+
+- 把本包 link 安装到 `$DSH_HOME/profiles/desktop` 后，宿主热重组：`sidebar.right.pane.tab` 的
+  occupants 中出现 `dsh-skill-sidebar`（active），`sidebar.right.pane.tab.title` 同样注册成功；
+- 服务端在桌面版进程内完成扫描，写入 `$DSH_HOME/storages/dsh-skill-sidebar/skills.json`。
+
 ## [0.2.1] - 2026-09-12
 
 可移植性修正：去掉源码里只对开发机成立的绝对路径，并把文档与发布说明改成与机器、与平台无关的表述。
