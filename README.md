@@ -24,6 +24,9 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 - **自动添加新技能**：4 个技能目录被 `fs.watch` 监听（含父目录），新技能安装后自动重新扫描；标签页可见期间每 30 秒后台刷新一次实时目录；缓存随目录集合变化自动失效重扫。
 - **每周一重新读取**：周一时服务端强制对全部技能做一次全量重读；此后每 6 小时校验一次，若缓存早于当天则再次刷新。
 
+- **能力分类（≤10 类）**：扫描时按规则把每个技能归入一个能力类别（飞书 / Lark、DSH / 插件、检索 / 抓取、图像 / 视觉、视频 / 音频、文档 / 表格、内容 / 发布、自动化 / n8n、开发 / 环境、其他），技能名优先、描述兜底；面板按分类分组，**每个分类头可点击折叠 / 展开**，折叠状态按设备存 localStorage（默认全部展开）。搜索在各分类内生效、空分类不显示、置顶仍排在各分类最前。
+- **技能索引 MD 文档（自动同步）**：每次扫描后把全部技能写成 `skills.md`（与 `skills.json` 同目录，默认 `~/.dsh/storages/dsh-skill-sidebar/skills.md`）：按分类分组，每条含 `/技能名` 调用语法、一句话能力与 `SKILL.md` 的**绝对路径**。启动、装新技能、每周一全量重扫、点面板「刷新」都会重写；`~/.dsh/AGENTS.md` 已加入「先读该文档再调用技能」的全局规则。
+
 ## 与官方侧边栏的契约
 
 | 项目 | 值 |
@@ -43,7 +46,7 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 ## 数据源
 
 - **实时目录**：`connection.api.skills.list({ sessionId })` —— 当前会话可见的技能（含内置与用户技能），由 DSH 的 skill 注册表实时提供。
-- **本机扫描**：`GET /skillpanel/skills` —— 插件服务端直接扫描技能根目录（`~/.agents/skills`，可用 `$DSH_AGENTS_HOME` 与 `$DSH_SKILL_DIRS` 扩展），解析 `SKILL.md` 的 YAML frontmatter（`name` / `description` / `whenToUse`）。
+- **本机扫描**：`GET /skillpanel/skills` —— 插件服务端直接扫描技能根目录（`~/.agents/skills`，可用 `$DSH_AGENTS_HOME` 与 `$DSH_SKILL_DIRS` 扩展），解析 `SKILL.md` 的 YAML frontmatter（`name` / `description` / `whenToUse`）。每条技能还带 `path`（`SKILL.md` 的绝对路径）与 `category`（能力分类）；响应体额外给出 `categories`（分类显示顺序）与 `docPath`（技能索引 MD 文档的路径）。
 - 两份数据按名称求并集合并展示（实时目录优先），因此既能显示会话可调用的技能，也能显示仅用户可调用或机器上其他根目录的技能。
 
 ## 缓存与刷新策略
@@ -51,14 +54,16 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 | 项目 | 位置 | 策略 |
 |---|---|---|
 | 服务端缓存 | `$DSH_HOME/storages/dsh-skill-sidebar/skills.json`（可用 `$DSH_SKILL_CACHE_DIR` 覆盖） | 启动时若非周一且 7 天内已扫描则直接使用；否则重扫 |
+| 技能索引文档 | `$DSH_HOME/storages/dsh-skill-sidebar/skills.md`（跟随 `$DSH_SKILL_CACHE_DIR`） | 每次落盘缓存时一起重写：按分类分组，列出 `/技能名`、能力短语与 `SKILL.md` 绝对路径 |
+| 分类折叠状态 | localStorage `dsh-skill-sidebar:cats:v1` | 按设备记住每个分类的折叠状态（默认全部展开） |
 | 浏览器缓存 | localStorage `dsh-skill-sidebar:cache:v1` | 打开选项卡立即渲染，后台再刷新 |
 | 自动添加 | `fs.watch`（500ms 防抖）+ 5 分钟轮询兜底 | 新技能出现即重扫 |
 | 每周一 | 服务端 6 小时定时器 + 客户端周一强制刷新 | 全量重读 |
 
 ## 路由
 
-- `GET /skillpanel/skills` —— 返回 `{ ok, skills, scannedAt, source, policy }`
-- `GET /skillpanel/skills/refresh` —— 立即重扫并返回最新列表
+- `GET /skillpanel/skills` —— 返回 `{ ok, skills, categories, docPath, scannedAt, source, policy }`；`skills[]` 每项含 `name / description / phrases / source / path / category`（+ 可选 `whenToUse`）
+- `GET /skillpanel/skills/refresh` —— 立即重扫、重写技能索引文档，并返回最新列表
 
 两条路由均使用与 `/api` 网关相同的浏览器信任围栏（loopback Host 或 connection 行的 `trustedHosts`）。
 
