@@ -8,7 +8,7 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 
 ## 功能
 
-- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为插件自带的 SVG（`assets/skill-panel.svg`：四角星火花，内联为 `currentColor` 描边图标）。
+- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为插件自带的 SVG（`assets/skill-panel.svg`：斜杠 + 火花，内联为 `currentColor` 填充图标，随明暗主题变化）。
 - **指南页入口**：类型自带一个 `guide` 条目，官方侧边栏的「开始」指南页出现「技能」胶囊，点击即以 `replaceTab` 打开技能页（与官方「工作区文件」同样的公开路径）。
 - **默认自动打开**：官方侧边栏默认折叠且为空，`openTab` 会在同一步展开右栏；本插件在**每个新会话打开一次**（`AUTO_OPEN = true`，`lib/client.js` 顶部一个常量即可关闭）。侧边栏座位未挂载时命令会抛错，故做了**有界重试**（250ms 起，最多 60 次）；关闭标签页后本次页面加载内不再自动打开。
 - **隐藏关闭按钮（常开）**：本面板标签页自己的关闭 X 被隐藏

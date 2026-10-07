@@ -360,7 +360,9 @@ function withImmediateTimers(body) {
   const glyph = glyphEl && typeof glyphEl.type === 'function' ? glyphEl.type(glyphEl.props) : glyphEl
   check(
     "chip draws the plugin's own inline SVG glyph",
-    !!glyph && glyph.type === 'svg' && glyph.props.viewBox === '0 0 24 24' && glyph.children.length === 1,
+    !!glyph && glyph.type === 'svg' && glyph.props.viewBox === '0 0 1024 1024'
+      && glyph.props.fill === 'currentColor' && glyph.children.length === 1
+      && /^M/.test(String(glyph.children[0].props.d || '')),
     JSON.stringify(glyph && glyph.type),
   )
   check('chip keeps the tab title text', !!(tree && tree.children[1] && tree.children[1].children[0] === '技能'), JSON.stringify(tree && tree.children[1]))
