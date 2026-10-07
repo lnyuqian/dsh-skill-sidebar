@@ -5,6 +5,23 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.2] - 2026-10-07
+
+面板外观与默认行为：自带 SVG 图标、隐藏本面板标签页的关闭 X（保持常开）、自动打开更稳。
+
+### 变更
+
+- **自带 SVG 图标**：不再借用官方 `IconSkillOutline16`，改为插件自己的四角星火花图标
+  （`assets/skill-panel.svg`，客户端内联为 `currentColor` 描边图标，自动跟随明暗主题）。
+  标签头 chip、面板标题与「开始」指南页胶囊三处同时生效。
+- **隐藏关闭按钮（常开）**：新增一条作用域受限的 CSS ——
+  `[data-dockkit-tab]:has([data-dsh-skills-chip]) [data-dockkit-tab-close]{display:none!important}`。
+  官方侧边栏的标签元素带 `data-dockkit-tab`、其关闭按钮带 `data-dockkit-tab-close`，
+  而本插件的 chip 带 `data-dsh-skills-chip`，因此只隐藏**技能面板自己**的关闭 X，
+  其他标签页的关闭按钮不受影响。
+- **默认自动打开**：`AUTO_OPEN` 仍为 `true`（每个新会话打开一次），重试窗口由 25 次放宽到 60 次
+  （250ms 起、400ms 间隔，约 24 秒），桌面版冷启动较慢时也不会错过打开时机。
+
 ## [0.2.1] - 2026-09-12
 
 可移植性修正：去掉源码里只对开发机成立的绝对路径，并把文档与发布说明改成与机器、与平台无关的表述。

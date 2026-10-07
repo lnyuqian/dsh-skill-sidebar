@@ -42,8 +42,6 @@ function makeReactStub() {
     Fragment: Symbol('Fragment'),
   }
 }
-const primitivesStub = { IconSkillOutline16: () => null }
-
 let failures = 0
 function check(name, cond, detail) {
   if (cond) {
@@ -63,14 +61,13 @@ let factoryError = null
 try {
   mod = handoff.factory((spec) => {
     if (spec === 'react') return makeReactStub()
-    if (spec === '@deepseek-ai/dsh-client-ui-primitives') return primitivesStub
     throw new Error(`unexpected require: ${spec}`)
   })
 } catch (e) {
   factoryError = e
 }
 
-check('factory runs with react + primitives', factoryError === null, String(factoryError))
+check('factory runs with react alone (no official primitives dependency)', factoryError === null, String(factoryError))
 check(
   'exports.inject declares the official sidebar services',
   Array.isArray(mod.inject)
@@ -208,7 +205,7 @@ function withImmediateTimers(body) {
   let calls = 0
   const { ctx, rec } = makeCtx({ current: 'session-1', openTabThrows: () => { calls++; return true } })
   withImmediateTimers(() => mod.apply(ctx))
-  check('bounded retries when no surface mounts', calls === 25, String(calls))
+  check('bounded retries when no surface mounts', calls === 60, String(calls))
   check('nothing recorded when every open throws', rec.openTab.length === 0)
   rec.disposeAll()
 }
@@ -334,6 +331,52 @@ function withImmediateTimers(body) {
   check('todayStr format', /^\d{4}-\d{2}-\d{2}$/.test(I.todayStr()))
   check('POLL_MS sane', I.POLL_MS >= 5000 && I.POLL_MS <= 120000)
   check('AUTO_OPEN on by default', I.AUTO_OPEN === true)
+}
+
+/* ---- panel chrome: own glyph, stay-open close rule ---- */
+{
+  const { ctx, rec } = makeCtx({ current: 'session-1' })
+  const realSetTimeout = globalThis.setTimeout
+  const realClearTimeout = globalThis.clearTimeout
+  globalThis.setTimeout = () => 0
+  globalThis.clearTimeout = () => {}
+  try { mod.apply(ctx) } finally {
+    globalThis.setTimeout = realSetTimeout
+    globalThis.clearTimeout = realClearTimeout
+  }
+  const titleEntry = rec.slots.find((s) => s.options.name === 'sidebar.right.pane.tab.title')
+  const useTabInfo = () => ({ tab: { id: 'tab-1', kind: 'skills', title: '技能', visible: true } })
+  let tree = null
+  let renderError = null
+  try { tree = titleEntry.component({ useTabInfo }) } catch (e) { renderError = e }
+  check('chip renders without error', renderError === null, String(renderError && renderError.message))
+  check(
+    'chip marks its own tab for the stay-open rule',
+    !!tree && tree.props.className === 'dss-chip' && tree.props['data-dsh-skills-chip'] === '1',
+    JSON.stringify(tree && tree.props),
+  )
+  const glyphEl = tree && tree.children[0]
+  // The React stub does not execute function components, so call the glyph.
+  const glyph = glyphEl && typeof glyphEl.type === 'function' ? glyphEl.type(glyphEl.props) : glyphEl
+  check(
+    "chip draws the plugin's own inline SVG glyph",
+    !!glyph && glyph.type === 'svg' && glyph.props.viewBox === '0 0 24 24' && glyph.children.length === 1,
+    JSON.stringify(glyph && glyph.type),
+  )
+  check('chip keeps the tab title text', !!(tree && tree.children[1] && tree.children[1].children[0] === '技能'), JSON.stringify(tree && tree.children[1]))
+  const css = String(mod.internals.CSS_TEXT || '')
+  check(
+    "stay-open rule hides this tab's own close button",
+    css.includes('[data-dockkit-tab]:has([data-dsh-skills-chip]) [data-dockkit-tab-close]{display:none!important}'),
+    css.slice(0, 120),
+  )
+  const closeIdx = css.indexOf('[data-dockkit-tab-close]')
+  check(
+    'the close-button rule is scoped, not global',
+    closeIdx > 0 && css.slice(Math.max(0, closeIdx - 60), closeIdx).includes(':has([data-dsh-skills-chip])'),
+    css.slice(0, 120),
+  )
+  rec.disposeAll()
 }
 
 console.log(failures === 0 ? '\nALL CLIENT CHECKS PASSED' : `\n${failures} CLIENT CHECK(S) FAILED`)

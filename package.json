@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-sidebar",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "DSH web plugin: a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar (@deepseek-ai/dsh-client-ui-sidebar-right) that lists all locally readable skills with short Chinese descriptions. Persists a cache so the list appears instantly on startup, auto-adds newly installed skills, and re-scans all skills every Monday.",
   "type": "module",
   "main": "lib/index.js",
@@ -14,6 +14,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "assets",
     "lib",
     "cordis.patch.yml",
     "CHANGELOG.md"

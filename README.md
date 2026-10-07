@@ -8,9 +8,12 @@ DSH web 插件：在 **DSH 官方右侧边栏**（`@deepseek-ai/dsh-client-ui-si
 
 ## 功能
 
-- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为官方技能图标 `IconSkillOutline16`。
+- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为插件自带的 SVG（`assets/skill-panel.svg`：四角星火花，内联为 `currentColor` 描边图标）。
 - **指南页入口**：类型自带一个 `guide` 条目，官方侧边栏的「开始」指南页出现「技能」胶囊，点击即以 `replaceTab` 打开技能页（与官方「工作区文件」同样的公开路径）。
-- **默认自动打开**：官方侧边栏默认折叠且为空，`openTab` 会在同一步展开右栏；本插件在**每个新会话打开一次**（`AUTO_OPEN = true`，`lib/client.js` 顶部一个常量即可关闭）。侧边栏座位未挂载时命令会抛错，故做了**有界重试**（250ms 起，最多 25 次）；关闭标签页后本次页面加载内不再自动打开。
+- **默认自动打开**：官方侧边栏默认折叠且为空，`openTab` 会在同一步展开右栏；本插件在**每个新会话打开一次**（`AUTO_OPEN = true`，`lib/client.js` 顶部一个常量即可关闭）。侧边栏座位未挂载时命令会抛错，故做了**有界重试**（250ms 起，最多 60 次）；关闭标签页后本次页面加载内不再自动打开。
+- **隐藏关闭按钮（常开）**：本面板标签页自己的关闭 X 被隐藏
+  （`[data-dockkit-tab]:has([data-dsh-skills-chip]) [data-dockkit-tab-close]{display:none!important}`），
+  面板保持常开；其他标签页的关闭按钮不受影响。
 - **紧凑排版**：每个技能两行展示 —— 第一行技能名（+ 目录标签 + 操作按钮），第二行 4-6 字功能短语；行与行之间以细分隔线隔开，鼠标悬停任意技能行弹出浮层显示完整功能描述。
 - **目录标签**：非公共目录（`.codex` / `.claude` / `.opencode`）的技能名后跟 `#目录` 小标签；公共目录 `.agents` 不加。
 - **复制（一键调用）**：每行「复制」按钮，点击复制 `/技能名`（带斜杠，DSH 输入框的技能触发语法），粘贴到输入框即可触发该技能。
