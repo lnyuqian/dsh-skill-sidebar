@@ -1,7 +1,7 @@
 {
   "name": "dsh-skill-sidebar",
-  "version": "0.3.0",
-  "description": "DSH plugin (web + Desktop): a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar (@deepseek-ai/dsh-client-ui-sidebar-right) that lists all locally readable skills with short Chinese descriptions. Persists a cache so the list appears instantly on startup, auto-adds newly installed skills, and re-scans all skills every Monday. Runs unchanged in the DSH desktop client (dsh-app:// shell), with a desktop-adapted hover overlay.",
+  "version": "0.4.0",
+  "description": "DSH plugin (web + Desktop): a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar that lists every locally readable skill, groups them by plugin/family, and keeps new sessions cheap — only skills used in the last 30 days plus pinned ones stay in the session skill catalog, the rest become on-demand (searchable and still /invocable). Persists a cache so the list appears instantly, auto-classifies newly installed skills, and re-scans all skills every Monday.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -22,8 +22,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "check": "node --check lib/index.js && node --check lib/client.js",
-    "test": "node test-client.mjs && node test-host.mjs && node test-desktop.mjs"
+    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/policy.js && node --check lib/mining.js",
+    "test": "node test-policy.mjs && node test-client.mjs && node test-host.mjs && node test-desktop.mjs && node test-registry-shadow.mjs"
   },
   "license": "MIT",
   "dsh": {

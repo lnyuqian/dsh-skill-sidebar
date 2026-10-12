@@ -6,6 +6,40 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 
 > v0.2.0 起从第三方 `dsh-better-sidebar` 面板迁移到官方侧边栏；不再依赖 `betterSidebar` 服务。版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
 
+## v0.4.0：按插件分类 + 新会话按需加载
+
+**要解决的问题**（2026-10-12 本机实测）：181 个技能里，**157 个**会被写进*每一个*新会话的
+`<available_skills>` 目录里 —— 约 44,010 字符 ≈ **14.9K token**，而且目录一变就重发一次；
+可最近 30 天真正被 `skill` 工具调用过的只有 **21 个**。
+
+**做法**：
+
+| 层 | 内容 |
+|---|---|
+| 分类 | 按「插件/家族」自动归入 12 个分类（`lib/categories.json`）：firecrawl-* → 网页检索、wecomcli-* → 企业微信、photon-* → 多媒体生成、dsh-* → DSH 运维… 规则：人工覆盖 > frontmatter `category` > 名字前缀 > 关键词打分 > 兜底 |
+| 标签 | frontmatter `tags`/`keywords` + 名字家族 + 来源根；每行显示「分类 · #标签」 |
+| 查询 | 分类筛选条（全部/常驻/索引/新装 + 各分类计数）+ 分组列表；搜索支持 `tag:xxx`、`#xxx`、`分类:xxx`、`category:xxx`、`常驻`、`索引` |
+| 自动归类 | 新装/新发现的技能在扫描时自动归类并落盘（`policy.json`），零手工步骤；可 `POST /skillpanel/classify` 人工改写 |
+| 使用证据 | 实时：订阅 `tools/execute` 记录 `skill` 调用；回填：启动后台扫最近 30 天的**多帧 zstd** 会话日志，挖出历史调用与「曾进目录」的技能 |
+| 加载清单 | 常驻 = **30 天内用过** ∪ **顶标（置顶）**；**30 天内进过目录却没被用过 → 退出新会话目录**（转「索引」） |
+| 生效方式 | 给索引里的技能注册同名 **runtime 影子**（rank 250 > 用户技能 400/500/600），只关 `modelInvocable` —— DSH 官方开关，**不改 DSH 本体** |
+| 索引里仍可用 | 侧栏可见 · `/技能名` 直接调用 · `skill_search` 检索并按名加载 |
+| `skill_search` 工具 | 全量索引检索（含被移出目录的技能）；传精确 `name` 直接拿回完整说明并记为一次使用 |
+
+**两点对原始规则的改进**：
+
+1. **新装技能 7 天试用期**：纯使用过滤会死锁（没用过 → 不列 → 永远用不上），新装/新改的 SKILL.md 先常驻。
+2. **证据不足不生效**：`usage` 与 `advertised` 都为空时（全新机器）整条策略 degraded，只统计不改行为。
+
+**开关**：`DSH_SKILL_POLICY=on|dry|off`（默认 `on`）、`DSH_SKILL_WINDOW_DAYS=30`、
+`DSH_SKILL_GRACE_DAYS=7`、`DSH_SKILL_MINE=on|off`、`DSH_SKILL_SESSIONS_DIR`。
+
+**自检**：`npm test` —— `test-policy.mjs`（55）· `test-client.mjs` · `test-host.mjs` ·
+`test-desktop.mjs`（59）· `test-registry-shadow.mjs`（12，对着真实注册表验证影子机制）。
+
+**注意**：宿主 half 的改动要**重启 DSH** 才生效（`link:` 安装）；重启后新会话的技能目录
+只列「常驻」那一份，侧栏页脚会显示「加载清单：30 天内用过 + 顶标常驻 · N 常驻 / M 索引」。
+
 ## 功能
 
 - **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为官方技能图标 `IconSkillOutline16`。

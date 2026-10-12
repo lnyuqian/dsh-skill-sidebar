@@ -80,9 +80,26 @@ console.log('\n[2] scanning real skill roots')
 {
   const roots = internals.allRoots()
   console.log(`  roots: ${JSON.stringify(roots)}`)
-  const skills = await internals.scanSkills()
+  const scanned = await internals.scanSkills()
+  const skills = scanned.skills
   console.log(`  found ${skills.length} skills`)
   check('found skills', skills.length > 30, `only ${skills.length}`)
+  check('scan also returns skill bodies (for shadow registration)',
+    scanned.bodies instanceof Map && scanned.bodies.size === skills.length, `bodies=${scanned.bodies.size}`)
+  check('every entry carries an install timestamp', skills.every((s) => Number.isFinite(s.installMtime)))
+  check('every entry carries a category from the table', skills.every((s) => {
+    const id = internals.classify(s, internals.CATEGORY_TABLE, {}).id
+    return typeof id === 'string' && id !== ''
+  }))
+  const firecrawl = skills.find((s) => s.name.startsWith('firecrawl-'))
+  if (firecrawl) {
+    check('family classification: firecrawl-* → 网页检索',
+      internals.classify(firecrawl, internals.CATEGORY_TABLE, {}).id === 'search',
+      JSON.stringify(internals.classify(firecrawl, internals.CATEGORY_TABLE, {})))
+  } else {
+    console.log('  note: no firecrawl-* skill installed here — family classification cross-check skipped')
+  }
+  check('deriveTags picks the name family', internals.deriveTags({ name: 'wecomcli-doc', source: 'agents' }).includes('wecomcli'))
   // Skill names differ per machine (a previously present skill may be
   // uninstalled), so assert the property instead of one fixed skill name.
   const cjkSample = skills.find((s) => /[\u4e00-\u9fff]/.test(s.description || ''))
@@ -132,12 +149,25 @@ console.log('\n[3] plugin body lifecycle + routes')
   process.env.DSH_CODEX_SKILL_DIR = join(scratch, 'codex')
   process.env.DSH_CLAUDE_SKILL_DIR = join(scratch, 'claude')
   process.env.DSH_OPENCODE_SKILL_DIR = join(scratch, 'opencode')
+  // 别去挖真实会话日志（那要跑一分钟）：指向一个不存在的目录。
+  process.env.DSH_SKILL_SESSIONS_DIR = join(scratch, 'no-sessions')
+  process.env.DSH_SKILL_MINE = 'off'
   const routes = {}
   const disposers = []
+  const events = {}
   let lifecycleDisposer = null
   const ctx = {
     loader: { entries: () => [] },
     logger: console,
+    get: () => undefined,
+    on: (eventName, listener) => {
+      (events[eventName] = events[eventName] || []).push(listener)
+      return () => {
+        const list = events[eventName] || []
+        const index = list.indexOf(listener)
+        if (index !== -1) list.splice(index, 1)
+      }
+    },
     webServer: {
       register: (route) => {
         routes[route.path] = route.handler
@@ -157,16 +187,38 @@ console.log('\n[3] plugin body lifecycle + routes')
 
   await new Promise((r) => setTimeout(r, 1200))
 
-  const mockReq = (extra) => ({
-    method: 'GET',
-    url: '/skillpanel/skills',
-    headers: { host: '127.0.0.1:3080', 'sec-fetch-site': 'same-origin', ...extra },
-  })
+  const mockReq = (extra, body) => {
+    const listeners = {}
+    const req = {
+      method: body === undefined ? 'GET' : 'POST',
+      url: '/skillpanel/skills',
+      headers: { host: '127.0.0.1:3080', 'sec-fetch-site': 'same-origin', ...extra },
+      on: (name, fn) => { (listeners[name] = listeners[name] || []).push(fn); return req },
+      destroy: () => {},
+    }
+    if (body !== undefined) {
+      // 让处理器先挂上监听，再投递数据。
+      setTimeout(() => {
+        for (const fn of listeners.data || []) fn(Buffer.from(body, 'utf8'))
+        for (const fn of listeners.end || []) fn()
+      }, 0)
+    }
+    return req
+  }
   const mockRes = () => {
     const res = { status: 0, body: '', writableEnded: false }
     res.writeHead = (status) => { res.status = status }
     res.end = (body) => { res.body = body; res.writableEnded = true }
     return res
+  }
+  const waitFor = async (fn, ms = 3000) => {
+    const start = Date.now()
+    for (;;) {
+      const value = await fn()
+      if (value) return value
+      if (Date.now() - start > ms) return value
+      await new Promise((r) => setTimeout(r, 60))
+    }
   }
 
   const res = mockRes()
@@ -176,17 +228,24 @@ console.log('\n[3] plugin body lifecycle + routes')
   check('route ok=true', payload.ok === true, JSON.stringify(payload))
   check('route lists 0 skills for scratch root', Array.isArray(payload.skills) && payload.skills.length === 0, JSON.stringify(payload.skills))
   check('route has scannedAt', typeof payload.scannedAt === 'string', JSON.stringify(payload.scannedAt))
-  check('route policy', payload.policy && payload.policy.mondayRefresh === true && payload.policy.autoAdd === true, JSON.stringify(payload.policy))
+  check('route carries the load policy', payload.policy !== null && typeof payload.policy.mode === 'string', JSON.stringify(payload.policy && payload.policy.mode))
+  check('no evidence → policy inactive (degraded)', payload.policy.degraded === true && payload.policy.active === false, JSON.stringify(payload.policy.stats))
+  check('route carries the category list', Array.isArray(payload.categories))
+  check('route carries the runtime settings', payload.settings && payload.settings.windowDays === 30 && payload.settings.graceDays === 7, JSON.stringify(payload.settings))
 
   const cross = mockRes()
   routes['/skillpanel/skills'](mockReq({ 'sec-fetch-site': 'cross-site' }), cross)
   check('cross-site blocked', cross.status === 403, String(cross.status))
 
-  // A new skill added to the watched root should appear (watcher debounce ~500ms).
+  // A new skill added to the watched root should appear (watcher debounce ~500ms),
+  // 并且被**自动归类**：firecrawl-* → 网页检索，认不出来的 → 其他。
   const fs = await import('node:fs')
   fs.mkdirSync(join(scratch, 'skills', 'brand-new'), { recursive: true })
   fs.writeFileSync(join(scratch, 'skills', 'brand-new', 'SKILL.md'),
-    '---\nname: brand-new\ndescription: 一个刚刚安装的新技能\n---\n\nbody')
+    '---\nname: brand-new\ndescription: 一个刚刚安装的新技能\ntags: [演示, demo]\n---\n\nbody')
+  fs.mkdirSync(join(scratch, 'skills', 'firecrawl-probe'), { recursive: true })
+  fs.writeFileSync(join(scratch, 'skills', 'firecrawl-probe', 'SKILL.md'),
+    '---\nname: firecrawl-probe\ndescription: probe a website\n---\n\nbody')
   await new Promise((r) => setTimeout(r, 1600))
   const res2 = mockRes()
   routes['/skillpanel/skills'](mockReq(), res2)
@@ -194,6 +253,48 @@ console.log('\n[3] plugin body lifecycle + routes')
   check('auto-add: new skill picked up by watcher',
     payload2.skills.some((s) => s.name === 'brand-new' && s.description === '一个刚刚安装的新技能'),
     JSON.stringify(payload2.skills))
+  check('auto-category: new skill gets a category without any manual step',
+    payload2.skills.every((s) => typeof s.category === 'string' && s.category !== ''))
+  check('auto-category: firecrawl-probe → search',
+    payload2.skills.find((s) => s.name === 'firecrawl-probe')?.category === 'search',
+    JSON.stringify(payload2.skills.find((s) => s.name === 'firecrawl-probe')))
+  check('auto-tags: frontmatter tags + name family',
+    JSON.stringify(payload2.skills.find((s) => s.name === 'brand-new')?.tags) === JSON.stringify(['演示', 'demo', 'brand']),
+    JSON.stringify(payload2.skills.find((s) => s.name === 'brand-new')?.tags))
+  check('new entries expose the catalog state',
+    ['resident', 'indexed'].includes(payload2.skills.find((s) => s.name === 'brand-new')?.state))
+
+  // 置顶：POST /skillpanel/pins 写入宿主侧（新会话加载清单要用）。
+  const pinRes = mockRes()
+  routes['/skillpanel/pins'](mockReq({}, JSON.stringify({ pins: ['brand-new'] })), pinRes)
+  const pinPayload = await waitFor(() => {
+    if (!pinRes.writableEnded) return null
+    return JSON.parse(pinRes.body)
+  })
+  check('pins route accepts a list', pinPayload?.ok === true && JSON.stringify(pinPayload.pins) === JSON.stringify(['brand-new']), pinRes.body.slice(0, 160))
+
+  // 策略路由：置顶技能必须常驻，并带上「为什么」的说明。
+  const policyRes = mockRes()
+  routes['/skillpanel/policy'](mockReq(), policyRes)
+  const policyPayload = JSON.parse(policyRes.body)
+  check('policy route ok', policyPayload.ok === true, policyRes.body.slice(0, 160))
+  check('pinned skill is resident', policyPayload.policy.resident.includes('brand-new'), JSON.stringify(policyPayload.policy.resident))
+  check('policy explains why (顶标常驻)', policyPayload.policy.detail['brand-new']?.whyText === '顶标常驻', JSON.stringify(policyPayload.policy.detail['brand-new']))
+  check('pins persisted in the store', JSON.stringify(policyPayload.store.pins) === JSON.stringify(['brand-new']))
+
+  // 实时使用证据：tools/execute 里的 skill 调用（含本插件自己的加载路径）。
+  const hook = (events['tools/execute'] || [])[0]
+  check('tools/execute hook registered', typeof hook === 'function')
+  if (typeof hook === 'function') {
+    await hook({ name: 'skill', arguments: { name: 'firecrawl-probe' }, agent: { session: { id: 'session-x' } } }, async () => ({ ok: true }))
+    await new Promise((r) => setTimeout(r, 1800))
+    const usageRes = mockRes()
+    routes['/skillpanel/usage'](mockReq(), usageRes)
+    const usage = JSON.parse(usageRes.body)
+    check('skill call recorded as usage',
+      usage.usage.some((u) => u.name === 'firecrawl-probe' && u.calls >= 1),
+      JSON.stringify(usage.usage))
+  }
 
   // Cache file written.
   const cacheText = readFileSync(internals.cacheFile(), 'utf8')

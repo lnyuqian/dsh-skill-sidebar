@@ -5,6 +5,73 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-10-12
+
+按「插件/家族」分类 + 使用证据驱动的**新会话按需加载**。本机实测：181 个技能里
+157 个会写进每个新会话的技能目录（≈44,010 字符 ≈ **14.9K token**，且目录一变就重发一次）；
+最近 30 天真正被调用过的只有 21 个。v0.4.0 让新会话只带「30 天内用过 + 顶标」的那一份。
+
+### 新增
+
+- **分类与标签**：`lib/categories.json` 把技能按「插件/家族」归入 12 个固定分类
+  （firecrawl-* → 网页检索、wecomcli-* → 企业微信、photon-* → 多媒体生成、dsh-* → DSH 运维…），
+  规则是「人工覆盖 > frontmatter `category` > 名字前缀家族 > 名称/说明关键词打分 > 兜底分类」。
+  标签来自 frontmatter 的 `tags`/`keywords`（现在本机技能还没有，将来会有）+ 名字家族 + 非同公共目录的来源根。
+- **新装技能自动归类**：每次扫描把没见过的技能自动归入合适分类并写入 `policy.json`；
+  已归类的不再改写，可人工改（`POST /skillpanel/classify`）。重装/新装技能零手工步骤即可出现在对的分类下。
+- **侧栏按分类查询**：顶部新增分类筛选条（全部 / 常驻 / 索引 / 新装 + 各分类计数），
+  列表按分类分组、每组标题带数量；搜索框支持 `tag:xxx`（或 `#xxx`）、`分类:xxx` / `category:xxx`、
+  以及 `常驻` / `索引` 关键词；每行显示「分类 · #标签」，并标出该技能是否**常驻**（会进新会话目录）。
+- **使用证据**（`lib/mining.js`）：实时订阅 `tools/execute` 记录 `skill` 工具调用；
+  启动后台回填最近 30 天的会话日志（**多帧** zstd JSONL，帧扫描算法移植自
+  `@deepseek-ai/dsh-session-persistence-jsonl` 的 `scanZstdFrames`，BSD-3-Clause），
+  挖出历史上的真实调用与被注入过目录的技能。回填有台账+`max` 合并语义，重复跑不会把调用数翻倍。
+- **新会话加载清单**（`lib/policy.js` + 宿主影子注册）：
+  - 常驻 = **30 天内使用过的技能** ∪ **顶标（置顶）的技能**；
+  - **30 天内被加载进目录却从未使用过 → 退出新会话加载清单**（转为「索引」）；
+  - 生效手段是给索引里的技能注册一个同名 **runtime 影子**（rank 250 压过用户技能 400/500/600），
+    只把 `modelInvocable` 设为 `false` —— 这是 DSH 官方区分「模型可见／用户可见」的开关，
+    **不需要改动 DSH 本体**。契约由 `test-registry-shadow.mjs` 对着真实注册表验证。
+  - 索引里的技能仍然：侧栏可见、`/技能名` 可直接调用、`skill_search` 可检索并加载。
+- **`skill_search` 工具**：全量索引检索（含被移出目录的技能），支持关键词、分类、标签；
+  传精确 `name` 直接返回该技能的完整说明（并记为一次使用）。这是「按需加载」的入口。
+- **置顶下沉到宿主**：顶标不再只是浏览器偏好 —— 它同时决定新会话常驻清单，
+  因此改为写入 `~/.dsh/storages/dsh-skill-sidebar/policy.json`（`POST /skillpanel/pins`），
+  浏览器 localStorage 仅作首帧回退。
+- 新路由：`GET /skillpanel/policy`（含每个技能为什么在/不在清单）、`POST /skillpanel/classify`、
+  `POST /skillpanel/mine`、`GET /skillpanel/usage`（诊断）。
+
+### 两点「更好的方式」（相对原始规则）
+
+1. **新装技能试用期**：完全按使用过滤会死锁（没用过 → 不列 → 永远用不上）。
+   新装/新改的 SKILL.md（`mtime` 在 7 天内）直接进常驻清单，试用期结束后仍未使用才转索引。
+2. **证据不足不生效**：`usage` 与 `advertised` 都为空时（全新机器/刚装插件）整条策略 **degraded**，
+   只统计不改行为，避免第一次启动就把全部技能藏起来。
+
+### 开关
+
+| 环境变量 | 默认 | 作用 |
+|---|---|---|
+| `DSH_SKILL_POLICY` | `on` | `on` 真生效 / `dry` 只统计不改行为 / `off` 完全关闭 |
+| `DSH_SKILL_WINDOW_DAYS` | `30` | 使用窗口（天） |
+| `DSH_SKILL_GRACE_DAYS` | `7` | 新装技能试用期（天） |
+| `DSH_SKILL_MINE` | `on` | `off` 跳过会话日志回填 |
+| `DSH_SKILL_SESSIONS_DIR` | `$DSH_HOME/sessions` | 会话日志根目录（回填用） |
+
+### 测试
+
+`test-policy.mjs`（55 项，纯逻辑：分类/标签/清单规则/保护机制/存储/多帧日志与证据提取）、
+`test-registry-shadow.mjs`（12 项，对真实 `@deepseek-ai/dsh-skill` 验证影子机制）、
+`test-client.mjs`（+38 项分类/标签/清单纯函数）、`test-host.mjs`、`test-desktop.mjs`。
+`npm test` 一次跑完，全部通过。
+
+### 已知边界
+
+- rank 250 的 runtime 影子压不过项目内技能（`project-dsh` 100 / `project-agents` 200）——
+  项目自带技能始终留在目录里，这是有意的安全边界。
+- 中文名/大写名等不合法技能名本来就不进模型目录，策略对它们只做统计。
+- 宿主 half 的改动需要重启 DSH 才生效（`link:` 安装，重启才会重新 import）。
+
 ## [0.3.0] - 2026-10-02
 
 桌面版适配：同一个包现在同时运行在 DSH web（浏览器）与 **DeepSeek Harness 桌面版**（Electron）两端，

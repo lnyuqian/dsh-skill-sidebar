@@ -1,0 +1,93 @@
+{
+  "_meta": {
+    "version": "2026-10-12.1",
+    "note": "技能分类表：按「插件/家族」把本机技能归入固定分类。按声明顺序匹配，命中得分最高者胜出；前缀命中权重最高，其次名称词、说明关键词。members 为人工指定成员（权重最高，可覆盖自动归类）。新增/新装的技能会在每次扫描时自动归类并写入 policy.json，可人工改 categories 字段覆盖。"
+  },
+  "categories": [
+    {
+      "id": "search",
+      "name": "网页检索",
+      "icon": "search",
+      "prefixes": ["firecrawl", "aiso"],
+      "keywords": ["网页搜索", "搜索", "抓取", "爬取", "爬虫", "检索", "文献", "论文", "引用", "scrape", "crawl", "search", "serp", "deep research", "research paper", "knowledge base", "lead gen", "seo"]
+    },
+    {
+      "id": "design",
+      "name": "界面设计",
+      "icon": "palette",
+      "prefixes": ["ui-", "design", "brand", "slides", "banner-design", "canvas-design", "frontend-design", "web-artifacts"],
+      "keywords": ["UI", "UX", "界面", "设计", "视觉", "配色", "排版", "样式", "布局", "组件", "design token", "tailwind", "shadcn", "css", "无障碍", "accessibility", "海报", "封面", "presentation", "slide"]
+    },
+    {
+      "id": "media",
+      "name": "多媒体生成",
+      "icon": "image",
+      "prefixes": ["photon-", "zimage", "qwen-image", "punk-", "baoyu-", "img2threejs", "stable-audio", "voxcpm", "hyperframes", "vimax", "slack-gif", "watch"],
+      "keywords": ["生成图片", "图像生成", "画图", "出图", "生图", "配图", "插图", "漫画", "信息图", "头像", "封面图", "头图", "视频", "音频", "配音", "语音", "音效", "背景音乐", "动画", "gif", "3D", "three.js", "photo", "image", "video", "audio", "avatar", "infographic", "comic"]
+    },
+    {
+      "id": "wecom",
+      "name": "企业微信",
+      "icon": "chat",
+      "prefixes": ["wecomcli"],
+      "keywords": ["企业微信", "企微", "wecom", "通讯录", "待办", "日程", "会议", "智能表格"]
+    },
+    {
+      "id": "dsh",
+      "name": "DSH 运维",
+      "icon": "terminal",
+      "prefixes": ["dsh-", "codex-", "claude-code", "codex-router", "spellbook", "memory-map"],
+      "keywords": ["DSH", "DeepSeek Harness", "codex", "claude code", "opencode", "插件", "plugin", "会话标题", "session rename", "模型同步", "快捷输入", "技能侧栏", "重启", "升级", "配置"]
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "icon": "cloud",
+      "prefixes": ["cloudflare", "sandbox-", "wrangler", "agents-sdk", "durable-objects", "turnstile", "workers-", "web-perf"],
+      "keywords": ["cloudflare", "workers", "durable object", "wrangler", "turnstile", "zero trust", "sase", "D1", "R2", "KV", "sandbox", "edge"]
+    },
+    {
+      "id": "cloud",
+      "name": "云与基础设施",
+      "icon": "server",
+      "prefixes": ["aws", "azure", "infrastructure-as-code", "containerization", "docker", "ci-cd"],
+      "keywords": ["AWS", "Azure", "S3", "terraform", "kubernetes", "helm", "IAM", "Key Vault", "容器", "镜像", "CI/CD", "GitHub Actions", "流水线", "部署"]
+    },
+    {
+      "id": "office",
+      "name": "文档办公",
+      "icon": "document",
+      "prefixes": ["docx", "pdf", "pptx", "xlsx", "office-", "doc-coauthoring"],
+      "keywords": ["Word", "Excel", "PowerPoint", "PPT", "spreadsheet", "文档", "表格", "幻灯片", "报告", "markdown", "邮件", "mail", "收件箱", "docx", "pdf", "xlsx"]
+    },
+    {
+      "id": "data",
+      "name": "数据与后端",
+      "icon": "database",
+      "prefixes": ["postgresql", "mongodb", "redis", "sqlalchemy", "pydantic", "fastapi", "database-design", "data-pipelines", "event-driven"],
+      "keywords": ["数据库", "schema", "索引", "SQL", "查询", "连接池", "迁移", "缓存", "消息队列", "Kafka", "ETL", "Airflow", "dbt", "数据管道", "API", "REST", "接口", "鉴权", "后端"]
+    },
+    {
+      "id": "engineering",
+      "name": "软件开发",
+      "icon": "code",
+      "prefixes": ["python", "go", "typescript", "javascript", "react", "angular", "tailwind", "unit-testing", "integration-testing", "performance", "security", "caching", "microservices", "system-design", "coding-standards", "development-workflow", "requirements-planning", "writing-plans", "technical-documentation", "api-design", "deployment-strategies", "feature-flags", "observability", "test-strategy", "solution-testing", "websockets-sse", "complex-doc-rag", "reverse-engineer", "embed-markdown", "webapp-testing"],
+      "keywords": ["代码", "重构", "类型", "编译", "单元测试", "集成测试", "端到端", "测试", "性能", "优化", "安全", "并发", "微服务", "架构", "设计模式", "规范", "评审", "代码质量", "技术文档", "README", "runbook", "排期", "需求", "验收标准", "SOP", "framework", "refactor", "testing"]
+    },
+    {
+      "id": "agent",
+      "name": "智能体与模型",
+      "icon": "sparkles",
+      "prefixes": ["ai-engineer", "openai-agents", "langgraph", "temporal", "general-temporal", "agentex", "mcp-builder", "skill-creator", "modlens", "promptbase", "monid"],
+      "keywords": ["agent", "智能体", "LLM", "大模型", "prompt", "提示词", "RAG", "向量", "embedding", "工作流", "workflow", "子agent", "subagent", "工具调用", "MCP", "视觉", "vision", "评测", "skill"]
+    },
+    {
+      "id": "local",
+      "name": "本机工具",
+      "icon": "wrench",
+      "prefixes": ["obsidian-", "flclash", "bookmark-sage", "qrcode", "agent-self-check", "reverse-engineer-anything", "answer-me-with-html", "opendesign"],
+      "keywords": ["本机", "本地", "Windows", "PowerShell", "环境", "安装", "卸载", "诊断", "故障", "排查", "脚本", "笔记", "Obsidian", "书签", "代理", "proxy", "二维码", "手机端", "隧道", "截图", "逆向", "反编译", "解压"]
+    }
+  ],
+  "fallback": { "id": "misc", "name": "其他", "icon": "folder" }
+}

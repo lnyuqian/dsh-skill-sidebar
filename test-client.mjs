@@ -255,11 +255,17 @@ function withImmediateTimers(body) {
   } catch (e) { renderError = e }
   check('body renders without error', renderError === null, String(renderError && renderError.stack))
   check('body root carries the plugin marker', !!tree && tree.props.className === 'dss-root' && tree.props['data-dsh-skill-sidebar'] === 'body', JSON.stringify(tree && tree.props))
-  const search = tree && tree.children[1]
+  const children = (tree && tree.children) || []
+  const findChild = (cls) => children.find((c) => c && c.props && typeof c.props.className === 'string' && c.props.className.split(' ').indexOf(cls) !== -1)
+  const search = findChild('dss-search')
   const input = search && search.children[0]
-  check('body renders the search box', !!input && input.props.placeholder === '搜索技能名称或描述…', JSON.stringify(input && input.props))
-  const foot = tree && tree.children[4]
+  check('body renders the search box', !!input && typeof input.props.placeholder === 'string' && input.props.placeholder.includes('tag:'), JSON.stringify(input && input.props))
+  check('search box documents the category/tag syntax', !!input && input.props.placeholder.includes('分类:'), JSON.stringify(input && input.props.placeholder))
+  const cats = findChild('dss-cats')
+  check('body renders the category filter bar slot (no data → no chips)', cats === undefined || cats === null || Array.isArray(cats.children), JSON.stringify(cats && cats.props))
+  const foot = findChild('dss-foot')
   check('body renders the source footer', !!foot && JSON.stringify(foot.children).includes('来源：'), JSON.stringify(foot && foot.children))
+  check('footer reserves the load-policy line', !!foot && JSON.stringify(foot.children).includes('"key":"pol"'), JSON.stringify(foot && foot.children))
   rec.disposeAll()
 }
 
@@ -370,6 +376,64 @@ function withImmediateTimers(body) {
   const unknown = { name: 'definitely-not-in-the-table-xyz', phrases: ['a'] }
   check('applyZh leaves uncovered skills untouched', I.applyZh(unknown) === unknown)
   check('applyZh tolerates junk input', I.applyZh(null) === null && typeof I.applyZh({}) === 'object')
+}
+
+/* ---- v0.4.0：分类 / 标签 / 加载清单（纯函数） ---- */
+{
+  const I = mod.internals
+  const NOW = Date.parse('2026-10-12T00:00:00+08:00')
+  const names = { search: '网页检索', media: '多媒体生成', misc: '其他' }
+  const skills = [
+    { name: 'firecrawl-search', category: 'search', state: 'resident', tags: ['firecrawl'], installMtime: NOW - 40 * 86400000 },
+    { name: 'firecrawl-crawl', category: 'search', state: 'indexed', tags: ['firecrawl'], installMtime: NOW - 40 * 86400000 },
+    { name: 'zimage-generation', category: 'media', state: 'indexed', tags: ['zimage'], installMtime: NOW - 1 * 86400000 },
+    { name: 'weird-one', category: 'misc', state: 'unknown', tags: [], installMtime: 0 },
+  ]
+  const categories = [
+    { id: 'search', name: '网页检索', count: 2 },
+    { id: 'media', name: '多媒体生成', count: 1 },
+    { id: 'misc', name: '其他', count: 1 },
+  ]
+
+  // 分类筛选条：全部 / 常驻 / 索引 / 新装 永远在前，其后是分类（按数量）。
+  const chips = I.filterChips(skills, categories, NOW)
+  check('chips 以「全部」开头', chips[0].id === 'all' && chips[0].count === 4, JSON.stringify(chips))
+  check('chips 含常驻/索引/新装计数',
+    chips.find((c) => c.id === 'resident').count === 1 && chips.find((c) => c.id === 'indexed').count === 2 && chips.find((c) => c.id === 'new').count === 1,
+    JSON.stringify(chips))
+  check('chips 分类按数量降序', chips.slice(4).map((c) => c.id).join(',') === 'search,media,misc', JSON.stringify(chips.slice(4)))
+  check('chips 容忍空数据', I.filterChips([], [], NOW).length === 1)
+
+  // 筛选
+  check('筛选：常驻', skills.filter((s) => I.matchFilter(s, 'resident', NOW)).length === 1)
+  check('筛选：索引', skills.filter((s) => I.matchFilter(s, 'indexed', NOW)).length === 2)
+  check('筛选：新装（7 天内）', skills.filter((s) => I.matchFilter(s, 'new', NOW)).map((s) => s.name).join(',') === 'zimage-generation')
+  check('筛选：分类 id', skills.filter((s) => I.matchFilter(s, 'search', NOW)).length === 2)
+  check('筛选：all 放行全部', skills.filter((s) => I.matchFilter(s, 'all', NOW)).length === 4)
+  check('缺字段时状态/分类有兜底', I.stateOf({}) === 'unknown' && I.categoryOf({}) === 'misc' && I.categoryLabel('misc', names) === '其他')
+
+  // 查询语法
+  check('查询：自由文本命中名称', I.matchQuery(skills[0], 'firecrawl', names) === true)
+  check('查询：命中描述', I.matchQuery({ name: 'x', description: '整理日程' }, '日程', names) === true)
+  check('查询：tag: 语法', I.matchQuery(skills[1], 'tag:firecrawl', names) === true && I.matchQuery(skills[2], 'tag:firecrawl', names) === false)
+  check('查询：# 简写等价 tag:', I.matchQuery(skills[1], '#firecrawl', names) === true)
+  check('查询：分类: 语法（中文名）', I.matchQuery(skills[0], '分类:网页检索', names) === true && I.matchQuery(skills[2], '分类:网页检索', names) === false)
+  check('查询：category: 语法（id）', I.matchQuery(skills[2], 'category:media', names) === true)
+  check('查询：常驻/索引关键词', I.matchQuery(skills[0], '常驻', names) === true && I.matchQuery(skills[0], '索引', names) === false)
+  check('查询：空串放行', I.matchQuery(skills[0], '', names) === true)
+
+  // 分组
+  const groups = I.groupSkills(skills.slice(0, 3), names, categories)
+  check('分组按分类聚合且保序', groups.map((g) => g.id).join(',') === 'search,media', JSON.stringify(groups.map((g) => g.id)))
+  check('分组名用中文表', groups[0].name === '网页检索' && groups[0].skills.length === 2)
+  check('分组容忍空输入', I.groupSkills([], names, categories).length === 0)
+
+  // 策略说明
+  check('policyLabel：生效', I.policyLabel({ mode: 'on', degraded: false, windowDays: 30, stats: { resident: 16, indexed: 158 } }).includes('16 常驻'))
+  check('policyLabel：证据不足', I.policyLabel({ mode: 'on', degraded: true, windowDays: 30, stats: { resident: 0, indexed: 0 } }).includes('证据不足'))
+  check('policyLabel：关闭', I.policyLabel({ mode: 'off', degraded: false, stats: {} }).includes('已关闭'))
+  check('policyLabel 容忍 null', I.policyLabel(null) === '')
+  check('客户端与宿主的试用期一致（7 天）', I.GRACE_DAYS === 7 && I.NEW_WINDOW_MS === 7 * 86400000)
 }
 
 console.log(failures === 0 ? '\nALL CLIENT CHECKS PASSED' : `\n${failures} CLIENT CHECK(S) FAILED`)
