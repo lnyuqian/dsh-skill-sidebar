@@ -8,7 +8,7 @@
       "id": "search",
       "name": "网页检索",
       "icon": "search",
-      "prefixes": ["firecrawl", "aiso"],
+      "prefixes": ["firecrawl", "aiso", "qiaomu", "browser-use", "everything-search", "opencli"],
       "keywords": ["网页搜索", "搜索", "抓取", "爬取", "爬虫", "检索", "文献", "论文", "引用", "scrape", "crawl", "search", "serp", "deep research", "research paper", "knowledge base", "lead gen", "seo"]
     },
     {
@@ -22,7 +22,7 @@
       "id": "media",
       "name": "多媒体生成",
       "icon": "image",
-      "prefixes": ["photon-", "zimage", "qwen-image", "punk-", "baoyu-", "img2threejs", "stable-audio", "voxcpm", "hyperframes", "vimax", "slack-gif", "watch"],
+      "prefixes": ["photon-", "zimage", "qwen-image", "punk-", "baoyu-", "img2threejs", "stable-audio", "voxcpm", "hyperframes", "vimax", "slack-gif", "watch", "bilibili", "doubao-download", "aria-icons"],
       "keywords": ["生成图片", "图像生成", "画图", "出图", "生图", "配图", "插图", "漫画", "信息图", "头像", "封面图", "头图", "视频", "音频", "配音", "语音", "音效", "背景音乐", "动画", "gif", "3D", "three.js", "photo", "image", "video", "audio", "avatar", "infographic", "comic"]
     },
     {
@@ -31,6 +31,20 @@
       "icon": "chat",
       "prefixes": ["wecomcli"],
       "keywords": ["企业微信", "企微", "wecom", "通讯录", "待办", "日程", "会议", "智能表格"]
+    },
+    {
+      "id": "lark",
+      "name": "飞书 / Lark",
+      "icon": "chat",
+      "prefixes": ["lark", "feishu", "bytedance-"],
+      "keywords": ["飞书", "lark", "feishu", "多维表格", "飞书文档", "飞书日历", "飞书会议", "白板"]
+    },
+    {
+      "id": "automation",
+      "name": "自动化 / n8n",
+      "icon": "workflow",
+      "prefixes": ["n8n", "automat", "zapier", "make-"],
+      "keywords": ["n8n", "自动化", "工作流编排", "定时任务", "webhook", "workflow automation", "rpa"]
     },
     {
       "id": "dsh",
@@ -57,8 +71,15 @@
       "id": "office",
       "name": "文档办公",
       "icon": "document",
-      "prefixes": ["docx", "pdf", "pptx", "xlsx", "office-", "doc-coauthoring"],
+      "prefixes": ["docx", "pdf", "pptx", "xlsx", "office-", "doc-coauthoring", "jieqi"],
       "keywords": ["Word", "Excel", "PowerPoint", "PPT", "spreadsheet", "文档", "表格", "幻灯片", "报告", "markdown", "邮件", "mail", "收件箱", "docx", "pdf", "xlsx"]
+    },
+    {
+      "id": "content",
+      "name": "内容 / 发布",
+      "icon": "send",
+      "prefixes": ["wechat", "article", "readme", "publish", "newsletter", "post-"],
+      "keywords": ["公众号", "文章", "文案", "排版", "发布", "投稿", "推文", "readme", "newsletter", "internal comms", "内容创作", "订阅"]
     },
     {
       "id": "data",

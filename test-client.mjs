@@ -210,7 +210,9 @@ function withImmediateTimers(body) {
   let calls = 0
   const { ctx, rec } = makeCtx({ current: 'session-1', openTabThrows: () => { calls++; return true } })
   withImmediateTimers(() => mod.apply(ctx))
-  check('bounded retries when no surface mounts', calls === 25, String(calls))
+  // 上游并入：重试窗口由 25 次放宽到 60 次（250ms 起、400ms 间隔 ≈ 24 秒），
+  // 桌面版冷启动更慢时也不会错过自动打开。
+  check('bounded retries when no surface mounts', calls === 60, String(calls))
   check('nothing recorded when every open throws', rec.openTab.length === 0)
   rec.disposeAll()
 }
@@ -266,6 +268,16 @@ function withImmediateTimers(body) {
   const foot = findChild('dss-foot')
   check('body renders the source footer', !!foot && JSON.stringify(foot.children).includes('来源：'), JSON.stringify(foot && foot.children))
   check('footer reserves the load-policy line', !!foot && JSON.stringify(foot.children).includes('"key":"pol"'), JSON.stringify(foot && foot.children))
+
+  // 上游并入：chip 外层 span 是「隐藏关闭 X」CSS 的钩子，图标是插件自带的 1024 单位填充图标。
+  const titleEntry = rec.slots.find((s) => s.options.name === 'sidebar.right.pane.tab.title')
+  const chip = titleEntry && titleEntry.component({ useTabInfo })
+  check('tab chip is wrapped in the marker span', !!chip && chip.props.className === 'dss-chip' && chip.props['data-dsh-skills-chip'] === '1', JSON.stringify(chip && chip.props))
+  const glyph = chip && chip.children && chip.children[0]
+  // 测试里没有 React 协调器：函数组件要自己调用一次拿到 svg 元素。
+  const glyphEl = glyph && typeof glyph.type === 'function' ? glyph.type(glyph.props) : glyph
+  check('chip uses the plugin\'s own SVG glyph', !!glyphEl && glyphEl.type === 'svg' && glyphEl.props.viewBox === '0 0 1024 1024' && glyphEl.props.fill === 'currentColor', JSON.stringify(glyphEl && glyphEl.props))
+  check('chip text lives in its own span', !!chip && chip.children[1].props.className === 'dss-chipText')
   rec.disposeAll()
 }
 
@@ -434,6 +446,30 @@ function withImmediateTimers(body) {
   check('policyLabel：关闭', I.policyLabel({ mode: 'off', degraded: false, stats: {} }).includes('已关闭'))
   check('policyLabel 容忍 null', I.policyLabel(null) === '')
   check('客户端与宿主的试用期一致（7 天）', I.GRACE_DAYS === 7 && I.NEW_WINDOW_MS === 7 * 86400000)
+}
+
+/* ---- 上游并入：自有 SVG 图标 / 常开面板 / 可折叠分组 ---- */
+{
+  const I = mod.internals
+  // 折叠表：缺省展开（{}）；写 false 表示折叠；再点一次恢复展开。
+  check('fold map defaults to empty (all expanded)', JSON.stringify(I.readCollapsedCats()) === '{}', JSON.stringify(I.readCollapsedCats()))
+  I.writeCollapsedCats({ search: false, media: false })
+  check('fold map round-trips', I.readCollapsedCats().search === false && I.readCollapsedCats().media === false)
+  const collapsed = I.toggleCollapsedCats(I.readCollapsedCats(), 'media')
+  check('toggle expands a collapsed group', collapsed.media === undefined && collapsed.search === false, JSON.stringify(collapsed))
+  const collapsed2 = I.toggleCollapsedCats(collapsed, 'media')
+  check('toggle collapses an expanded group', collapsed2.media === false)
+  check('toggle does not mutate the input', collapsed.media === undefined)
+  check('折叠表 key 稳定（按设备记忆）', I.CATS_KEY === 'dsh-skill-sidebar:cats:v1')
+  localStorage.removeItem(I.CATS_KEY)
+  check('折叠表缺失时回落到全展开', JSON.stringify(I.readCollapsedCats()) === '{}')
+
+  // 源码级契约：自有图标 + 作用域受限的关闭 X 隐藏（上游并入的常开面板）。
+  const source = readFileSync(new URL('./lib/client.js', import.meta.url), 'utf8')
+  check('client inlines the plugin\'s own 1024-unit icon', source.includes("viewBox: '0 0 1024 1024'"))
+  check('client no longer borrows the official 16px glyph for the chip', !source.includes('primitives.IconSkillOutline16'))
+  check('close X hidden only for this panel', source.includes('[data-dockkit-tab]:has([data-dsh-skills-chip]) [data-dockkit-tab-close]{display:none!important}'))
+  check('group headers are collapsible buttons', source.includes("role: 'button'") && source.includes("'aria-expanded': !isCollapsed"))
 }
 
 console.log(failures === 0 ? '\nALL CLIENT CHECKS PASSED' : `\n${failures} CLIENT CHECK(S) FAILED`)

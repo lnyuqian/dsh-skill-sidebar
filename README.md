@@ -25,6 +25,9 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 | 生效方式 | 给索引里的技能注册同名 **runtime 影子**（rank 250 > 用户技能 400/500/600），只关 `modelInvocable` —— DSH 官方开关，**不改 DSH 本体** |
 | 索引里仍可用 | 侧栏可见 · `/技能名` 直接调用 · `skill_search` 检索并按名加载 |
 | `skill_search` 工具 | 全量索引检索（含被移出目录的技能）；传精确 `name` 直接拿回完整说明并记为一次使用 |
+| 分组与折叠 | 分组头即按钮（▾/▸，回车/空格可切换），折叠状态按设备存 localStorage（`dsh-skill-sidebar:cats:v1`），缺省全部展开 |
+| 索引文档 `skills.md` | 每次扫描重写 `skills.json` 同目录的 `skills.md`：按分类分组、每条含 `/技能名`、一句话能力、`SKILL.md` 绝对路径与「常驻 / 索引」标注；接口回传 `docPath` |
+| 自有图标 · 常开面板 | 标签头/面板标题/指南胶囊统一用插件自带 SVG（`assets/skill-panel.svg`，1024 单位 `currentColor` 填充）；本面板的关闭 X 被作用域受限的 `:has()` 规则隐藏，常驻右栏 |
 
 **两点对原始规则的改进**：
 
@@ -42,17 +45,25 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 
 ## 功能
 
-- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为官方技能图标 `IconSkillOutline16`。
+- **官方侧边栏标签页**：走官方两段式注册 —— 先在 `ctx.sidebarRightTabs.register` 声明页面类型（`kind: 'skills'`，`priority: 'extension'`），再在 `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 座位下以定义 `id` 注册主体与标签头。图标为插件自带的 SVG（`assets/skill-panel.svg`：斜杠 + 火花，内联为 `currentColor` 填充图标，随明暗主题变化）。
 - **指南页入口**：类型自带一个 `guide` 条目，官方侧边栏的「开始」指南页出现「技能」胶囊，点击即以 `replaceTab` 打开技能页（与官方「工作区文件」同样的公开路径）。
-- **默认自动打开**：官方侧边栏默认折叠且为空，`openTab` 会在同一步展开右栏；本插件在**每个新会话打开一次**（`AUTO_OPEN = true`，`lib/client.js` 顶部一个常量即可关闭）。侧边栏座位未挂载时命令会抛错，故做了**有界重试**（250ms 起，最多 25 次）；关闭标签页后本次页面加载内不再自动打开。
+- **默认自动打开**：官方侧边栏默认折叠且为空，`openTab` 会在同一步展开右栏；本插件在**每个新会话打开一次**（`AUTO_OPEN = true`，`lib/client.js` 顶部一个常量即可关闭）。侧边栏座位未挂载时命令会抛错，故做了**有界重试**（250ms 起，最多 60 次）；关闭标签页后本次页面加载内不再自动打开。
+- **隐藏关闭按钮（常开）**：本面板标签页自己的关闭 X 被隐藏
+  （`[data-dockkit-tab]:has([data-dsh-skills-chip]) [data-dockkit-tab-close]{display:none!important}`），
+  面板保持常开；其他标签页的关闭按钮不受影响。
 - **紧凑排版**：每个技能两行展示 —— 第一行技能名（+ 目录标签 + 操作按钮），第二行 4-6 字功能短语；行与行之间以细分隔线隔开，鼠标悬停任意技能行弹出浮层显示完整功能描述。
 - **目录标签**：非公共目录（`.codex` / `.claude` / `.opencode`）的技能名后跟 `#目录` 小标签；公共目录 `.agents` 不加。
 - **复制（一键调用）**：每行「复制」按钮，点击复制 `/技能名`（带斜杠，DSH 输入框的技能触发语法），粘贴到输入框即可触发该技能。
-- **置顶 / 取消置顶**：每行 12px 图钉按钮；点击置顶后该技能**排到列表最前**（图标变主题色实心），再点取消；置顶状态存浏览器 localStorage（`dsh-skill-sidebar:pins:v1`），刷新后保留。
+- **置顶 / 取消置顶（顶标）**：每行 12px 图钉按钮；点击置顶后该技能**排到列表最前**（图标变主题色实心），再点取消。v0.4.0 起置顶同时**写回宿主** `~/.dsh/storages/dsh-skill-sidebar/policy.json`（`POST /skillpanel/pins`）—— 因为它同时决定「新会话常驻清单」；浏览器 localStorage（`dsh-skill-sidebar:pins:v1`）只作首帧回退。
 - **目录扩展扫描**：扫描本机 4 个技能目录 —— `.agents/skills`（公共）、`.codex/skills`、`.claude/skills`、`.opencode/skills`（后三个均可用环境变量 `DSH_CODEX_SKILL_DIR` / `DSH_CLAUDE_SKILL_DIR` / `DSH_OPENCODE_SKILL_DIR` 覆盖）；同名技能以 `.agents` 优先去重（`.claude` 的 junction 软链接不重复显示）。各目录类型均支持 `$DSH_SKILL_DIRS` 追加。
 - **短语来源**：插件自带 `lib/phrases.json`（为中文技能手写的 4-6 字短语清单）与 `lib/skills-zh.json`（为**英文** SKILL.md 技能提供的中文短语 + 一句话中文说明，随包分发）；两者都没有的新安装技能自动用规则从描述中拆分生成短语（按标点切分、取每段前 6 字、去重、最多 6 条）。解析自动处理 UTF-8 BOM 与 GBK 编码文件。
 - **中文化（v0.3.0）**：本机多数技能的 `SKILL.md` 是英文，规则短语只能截出 `Use when`、`adding A` 这类片段。现在列表第二行显示随包的中文短语（如 `网页搜索，整页抓取，资料检索`），悬停浮层把**中文说明排在最前**、英文原文与 `whenToUse` 保留在后；技能名保持英文原样，因为它就是 `/技能名` 的调用标识。中文技能沿用 `phrases.json` 的手写短语，不受影响。
   中文表同时由 `scripts/sync-zh.mjs` **内联进客户端 bundle**（`lib/client.js` 的 `@zh-inline` 段）：客户端 bundle 走 `client-hmr` 即时重载，而宿主半侧只有重启应用才会重新加载，内联让两端都在改表后立刻显示中文；宿主重启后服务端数据自带 `zh`，客户端合并是幂等的（两侧同源于 `lib/skills-zh.json`，一致性由测试断言）。搜索也覆盖中文说明与短语。
+- **分类分组 + 折叠（v0.4.0，并入上游设计）**：面板按分类分组，每个分类头可点击折叠/展开
+  （`dsh-skill-sidebar:cats:v1` 按设备记忆，缺省全部展开；折叠时不挂载行）。
+- **技能索引文档（v0.4.0，并入上游设计）**：每次扫描后重写 `skills.md`（与 `skills.json` 同目录），
+  按分类分组、每条含 `/技能名`、一句话能力、`SKILL.md` 绝对路径与「常驻 / 索引」标注，
+  便于 agent 先读文档再按名加载；接口回传 `docPath`。
 - **立即列出，无需等待**：服务端把技能列表直接注入页面（`window.__DSH_SKILLS__`），同时持久化到浏览器 localStorage 与会话缓存文件，再次启动打开选项卡即可瞬间渲染，无需网络往返。**桌面版例外**：Electron 直接读取打包好的前端（`dsh-app://app/` 由 `serveWebDocument` 提供），不经过 `webServer` 的 index 变换管道，因此该首屏注入在桌面端不生效 —— 桌面端首屏来自 localStorage 快照与实时目录，随后由 `/skillpanel/skills` 补齐（功能不受影响，只是没有"零请求"那一层）。
 - **自动添加新技能**：4 个技能目录被 `fs.watch` 监听（含父目录），新技能安装后自动重新扫描；标签页可见期间每 30 秒后台刷新一次实时目录；缓存随目录集合变化自动失效重扫。
 - **每周一重新读取**：周一时服务端强制对全部技能做一次全量重读；此后每 6 小时校验一次，若缓存早于当天则再次刷新。
@@ -92,6 +103,9 @@ pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
 
 > 桌面版与 web 版共用同一份 `lib/`：没有平台分叉代码，`dsh.client.platform` 仍是 `"web"`（桌面版同样按 web 平台客户端加载，与 dsh-mobile、dsh-quick-prompts 一致）。唯一的实现差异是上面表格里的首屏注入一行：`tapIndex` 只在浏览器路径上执行。
 
+- **能力分类（≤10 类）**：扫描时按规则把每个技能归入一个能力类别（飞书 / Lark、DSH / 插件、检索 / 抓取、图像 / 视觉、视频 / 音频、文档 / 表格、内容 / 发布、自动化 / n8n、开发 / 环境、其他），技能名优先、描述兜底；面板按分类分组，**每个分类头可点击折叠 / 展开**，折叠状态按设备存 localStorage（默认全部展开）。搜索在各分类内生效、空分类不显示、置顶仍排在各分类最前。
+- **技能索引 MD 文档（自动同步）**：每次扫描后把全部技能写成 `skills.md`（与 `skills.json` 同目录，默认 `~/.dsh/storages/dsh-skill-sidebar/skills.md`）：按分类分组，每条含 `/技能名` 调用语法、一句话能力与 `SKILL.md` 的**绝对路径**。启动、装新技能、每周一全量重扫、点面板「刷新」都会重写；`~/.dsh/AGENTS.md` 已加入「先读该文档再调用技能」的全局规则。
+
 ## 与官方侧边栏的契约
 
 | 项目 | 值 |
@@ -111,8 +125,7 @@ pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
 ## 数据源
 
 - **实时目录**：`connection.api.skills.list({ sessionId })` —— 当前会话可见的技能（含内置与用户技能），由 DSH 的 skill 注册表实时提供。
-- **本机扫描**：`GET /skillpanel/skills` —— 插件服务端直接扫描技能根目录（`~/.agents/skills`，可用 `$DSH_AGENTS_HOME` 与 `$DSH_SKILL_DIRS` 扩展），解析 `SKILL.md` 的 YAML frontmatter（`name` / `description` / `whenToUse`）。
-- **中文短语与说明**：`lib/skills-zh.json` —— 包内随附的中文表（key 为技能名，含 `phrases` 与 `summary`），服务端在扫描时把 `summary` 写进条目的 `zh` 字段；客户端列表用 `phrases`、悬停用 `zh` + 原文。该表的指纹写进缓存签名，换表后自动重扫（不必等周一）。
+- **本机扫描**：`GET /skillpanel/skills` —— 插件服务端直接扫描技能根目录（`~/.agents/skills`，可用 `$DSH_AGENTS_HOME` 与 `$DSH_SKILL_DIRS` 扩展），解析 `SKILL.md` 的 YAML frontmatter（`name` / `description` / `whenToUse` / `tags` / `category`）。每条技能还带 `path`（`SKILL.md` 的绝对路径）、`category`（分类 id）、`tags` 与**加载清单状态**（`state`：`resident` 进新会话目录 / `indexed` 按需）；响应体额外给出 `policy`（加载清单摘要）、`categories`（分类表与计数）、`categoryNames`（id → 中文名）、`usage` 与 `docPath`（技能索引 MD 的路径）。
 - 两份数据按名称求并集合并展示（实时目录优先），因此既能显示会话可调用的技能，也能显示仅用户可调用或机器上其他根目录的技能。
 
 ## 缓存与刷新策略
@@ -120,14 +133,16 @@ pwsh -File .\install-desktop.ps1 -Uninstall         # 卸载
 | 项目 | 位置 | 策略 |
 |---|---|---|
 | 服务端缓存 | `$DSH_HOME/storages/dsh-skill-sidebar/skills.json`（可用 `$DSH_SKILL_CACHE_DIR` 覆盖） | 启动时若非周一且 7 天内已扫描则直接使用；否则重扫 |
+| 技能索引文档 | `$DSH_HOME/storages/dsh-skill-sidebar/skills.md`（跟随 `$DSH_SKILL_CACHE_DIR`） | 每次落盘缓存时一起重写：按分类分组，列出 `/技能名`、能力短语与 `SKILL.md` 绝对路径 |
+| 分类折叠状态 | localStorage `dsh-skill-sidebar:cats:v1` | 按设备记住每个分类的折叠状态（默认全部展开） |
 | 浏览器缓存 | localStorage `dsh-skill-sidebar:cache:v1` | 打开选项卡立即渲染，后台再刷新 |
 | 自动添加 | `fs.watch`（500ms 防抖）+ 5 分钟轮询兜底 | 新技能出现即重扫 |
 | 每周一 | 服务端 6 小时定时器 + 客户端周一强制刷新 | 全量重读 |
 
 ## 路由
 
-- `GET /skillpanel/skills` —— 返回 `{ ok, skills, scannedAt, source, policy }`
-- `GET /skillpanel/skills/refresh` —— 立即重扫并返回最新列表
+- `GET /skillpanel/skills` —— 返回 `{ ok, skills, categories, docPath, scannedAt, source, policy }`；`skills[]` 每项含 `name / description / phrases / source / path / category`（+ 可选 `whenToUse`）
+- `GET /skillpanel/skills/refresh` —— 立即重扫、重写技能索引文档，并返回最新列表
 
 两条路由均使用与 `/api` 网关相同的浏览器信任围栏（loopback Host 或 connection 行的 `trustedHosts`）。
 

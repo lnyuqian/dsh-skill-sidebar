@@ -1,7 +1,7 @@
 {
   "name": "dsh-skill-sidebar",
   "version": "0.4.0",
-  "description": "DSH plugin (web + Desktop): a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar that lists every locally readable skill, groups them by plugin/family, and keeps new sessions cheap — only skills used in the last 30 days plus pinned ones stay in the session skill catalog, the rest become on-demand (searchable and still /invocable). Persists a cache so the list appears instantly, auto-classifies newly installed skills, and re-scans all skills every Monday.",
+  "description": "DSH plugin (web + Desktop): a 技能 (Skills) page tab in DSH's OFFICIAL right Sidebar that lists every locally readable skill, groups them by plugin/family (collapsible), writes a path-carrying skills.md index, and keeps new sessions cheap — only skills used in the last 30 days plus pinned ones stay in the session skill catalog, the rest become on-demand (searchable and still /invocable). Persists a cache so the list appears instantly, auto-classifies newly installed skills, and re-scans all skills every Monday.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -14,6 +14,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "assets",
     "lib",
     "scripts",
     "cordis.patch.yml",

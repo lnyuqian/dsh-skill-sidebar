@@ -4,7 +4,7 @@
  * skill root, and boots the plugin body with a mock cordis ctx to exercise the
  * routes, the cache file, and the disposer.
  */
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply, internals } from './lib/index.js'
@@ -295,6 +295,22 @@ console.log('\n[3] plugin body lifecycle + routes')
       usage.usage.some((u) => u.name === 'firecrawl-probe' && u.calls >= 1),
       JSON.stringify(usage.usage))
   }
+
+  // 技能索引文档 skills.md（上游并入：按分类分组 + 带 SKILL.md 绝对路径 + 清单标注）
+  const doc = internals.renderSkillsDoc(payload2.skills, '2026-10-12T00:00:00.000Z', null)
+  check('skills.md 渲染出分类分组标题', doc.includes('## 网页检索（1）'), doc.split('\n').slice(0, 10).join(' | '))
+  check('skills.md 带 /技能名 与绝对路径', /- `\/firecrawl-probe` — .*路径：`.*firecrawl-probe.*SKILL\.md`/.test(doc), doc.split('\n').filter((l) => l.includes('firecrawl-probe')).join(' | '))
+  check('skills.md 确定性（同输入同输出）', internals.renderSkillsDoc(payload2.skills, '2026-10-12T00:00:00.000Z', null) === doc)
+  check('skills.md 超长描述截断', internals.oneLineSummary('x'.repeat(200)).length === 81, String(internals.oneLineSummary('x'.repeat(200)).length))
+  check('skills.md 空描述有兜底', internals.oneLineSummary('') === '（无描述）')
+  check('skills.md 无数据也能渲染', internals.renderSkillsDoc([], '2026-10-12T00:00:00.000Z', null).includes('技能总数：**0**'))
+  check('skills.md 标注常驻/索引', internals.renderSkillsDoc(payload2.skills, 'x', {
+    windowDays: 30,
+    stats: { resident: 1, indexed: 1 },
+    detail: { 'firecrawl-probe': { state: 'resident' } },
+  }).includes('`/firecrawl-probe`（常驻）'))
+  check('列表接口给出 docPath', typeof payload2.docPath === 'string' && payload2.docPath.endsWith('skills.md'), String(payload2.docPath))
+  check('skills.md 已落盘', existsSync(internals.skillsDocFile()), internals.skillsDocFile())
 
   // Cache file written.
   const cacheText = readFileSync(internals.cacheFile(), 'utf8')
