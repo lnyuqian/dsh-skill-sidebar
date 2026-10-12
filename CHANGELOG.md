@@ -5,6 +5,50 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.1] - 2026-10-12
+
+**修一个会让 v0.4.0 的核心功能静默失效的层问题**：影子注册进了错误的层。
+
+### 背景（重启后实测发现）
+
+v0.4.0 用 runtime 影子（只关 `modelInvocable`）实现「索引技能不进新会话目录」。重启后实测：
+
+- 策略算得对（`常驻 19 / 索引 159`）、`active=true`、索引文档也写了；
+- 但新会话目录仍是 **154 条**（不是 19），且 `skill` 工具**仍能**加载索引技能 —— 影子完全无效。
+
+### 根因
+
+技能注册表是 **host + 按作用域分层** 的，规则是「**更近的层直接胜出**」（rank 只在同一层内比较）：
+
+| 层 | 谁在注册 |
+|---|---|
+| 全局层 | 部署级 provider（本机由 `dsh-web-app` patch **禁用**了 host 的 `skill-filesystem`） |
+| preset 层 | `standard` 这个 agent preset **自带** 的 `skill-filesystem`（`dsh-web-app/presets/standard.patch.yml`） |
+
+`dsh-web-app/cordis.patch.yml` 里的原始注释把这条设计写得很清楚：*「部署级 provider 注册进全局层，
+而 preset 的 skill-filesystem 注册进该 preset 的层，每个 agent 读它作用域链选出的合并目录」*。
+本插件是 host 行 → 只能进全局层 → **被 preset 层的条目直接盖掉**，rank 250 再低也无用。
+
+### 修复
+
+- 新增 **agent 作用域影子**：在 `agent/pre-step`（每步开始、早于 `dsh-tool-skill` 渲染目录）里，
+  用 **该 agent 自己作用域上的 `skills` 实例**（`agent.ctx.get('skills')`）注册影子 ——
+  agent 层比 preset 层更近，必然命中。每个 agent 每策略修订只注册一次，随 agent 生命周期释放。
+- 全局层那条路**保留**（对启用 host provider 的部署仍然有效），两条路互不干扰。
+- 新增**影子自查**：注册后用该 agent 的视角读一次注册表，确认抽查技能确实 `modelInvocable=false`，
+  结果写进 `/skillpanel/skills` 的 `shadow` 字段（`{agentScoped, effective, sample, checkedAt, global, revision}`）。
+  上一次就是静默失效、只能靠人工排查，这次让它自己报。
+- 策略一变（`invalidateAgentShadows`）所有 agent 在下一步重建影子。
+
+### 测试
+
+`test-host.mjs` 新增：造一个 40 天没用过的技能 → 模拟一步 agent 运行 → 断言插件调用了该 agent 的
+`register()` 且 `modelInvocable=false`、`userInvocable=true`、带正文与描述；同一 agent 不重复注册；
+列表接口暴露 `shadow.agentScoped ≥ 1`。
+
+> 教训（已写进代码注释）：**「注册进去了」不等于「生效了」**。分层注册表 + 影子这类机制必须做端到端断言
+> （读一次真实视角的目录），否则测试全绿、功能为零。
+
 ## [0.4.0] - 2026-10-12
 
 按「插件/家族」分类 + 使用证据驱动的**新会话按需加载**。本机实测：181 个技能里

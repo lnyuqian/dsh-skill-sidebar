@@ -22,7 +22,7 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 | 自动归类 | 新装/新发现的技能在扫描时自动归类并落盘（`policy.json`），零手工步骤；可 `POST /skillpanel/classify` 人工改写 |
 | 使用证据 | 实时：订阅 `tools/execute` 记录 `skill` 调用；回填：启动后台扫最近 30 天的**多帧 zstd** 会话日志，挖出历史调用与「曾进目录」的技能 |
 | 加载清单 | 常驻 = **30 天内用过** ∪ **顶标（置顶）**；**30 天内进过目录却没被用过 → 退出新会话目录**（转「索引」） |
-| 生效方式 | 给索引里的技能注册同名 **runtime 影子**（rank 250 > 用户技能 400/500/600），只关 `modelInvocable` —— DSH 官方开关，**不改 DSH 本体** |
+| 生效方式 | 两级影子：**agent 作用域**（`agent/pre-step` 里用该 agent 自己的 `skills` 实例注册，必命中；v0.4.1 修正）+ 全局层（对启用 host provider 的部署有效）。只关 `modelInvocable` —— DSH 官方开关，**不改 DSH 本体** |
 | 索引里仍可用 | 侧栏可见 · `/技能名` 直接调用 · `skill_search` 检索并按名加载 |
 | `skill_search` 工具 | 全量索引检索（含被移出目录的技能）；传精确 `name` 直接拿回完整说明并记为一次使用 |
 | 分组与折叠 | 分组头即按钮（▾/▸，回车/空格可切换），折叠状态按设备存 localStorage（`dsh-skill-sidebar:cats:v1`），缺省全部展开 |
@@ -33,6 +33,12 @@ DSH 插件（**web 版 / 桌面版通用**）：在 **DSH 官方右侧边栏**�
 
 1. **新装技能 7 天试用期**：纯使用过滤会死锁（没用过 → 不列 → 永远用不上），新装/新改的 SKILL.md 先常驻。
 2. **证据不足不生效**：`usage` 与 `advertised` 都为空时（全新机器）整条策略 degraded，只统计不改行为。
+
+> **v0.4.1 重要修正（分层陷阱）**：技能注册表是 host + 按作用域分层的，**更近的层直接胜出**（rank 只在同层内比较）。
+> 本机 `standard` agent preset **自带** `skill-filesystem`（全局那个被 `dsh-web-app` patch 禁用了），
+> 所以只注册进全局层的影子会被 preset 层盖掉 —— 表现为「策略算得对、目录一条没少、`skill` 工具照样能加载索引技能」。
+> v0.4.1 起改为在 `agent/pre-step` 里用 **该 agent 作用域自己的** `skills` 实例注册（`agent.ctx.get('skills')`），
+> 并新增自查：注册后按该 agent 视角读一次注册表，结果见 `/skillpanel/skills` 的 `shadow` 字段（`effective` 应为 `true`）。
 
 **开关**：`DSH_SKILL_POLICY=on|dry|off`（默认 `on`）、`DSH_SKILL_WINDOW_DAYS=30`、
 `DSH_SKILL_GRACE_DAYS=7`、`DSH_SKILL_MINE=on|off`、`DSH_SKILL_SESSIONS_DIR`。

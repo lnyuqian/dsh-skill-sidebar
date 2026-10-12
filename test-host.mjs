@@ -296,6 +296,46 @@ console.log('\n[3] plugin body lifecycle + routes')
       JSON.stringify(usage.usage))
   }
 
+  // agent 作用域影子：这是**真正生效**的那条路（全局层会被 preset 层盖掉，见 lib/index.js 注释）。
+  // 造一个「很久没用过」的技能 → 策略判为索引；再模拟一步 agent 运行，断言插件用该 agent 自己的
+  // skills 实例把它注册成 modelInvocable=false（用户仍可调用）。
+  fs.mkdirSync(join(scratch, 'skills', 'old-indexed'), { recursive: true })
+  const oldSkillFile = join(scratch, 'skills', 'old-indexed', 'SKILL.md')
+  fs.writeFileSync(oldSkillFile, '---\nname: old-indexed\ndescription: 一个很久没用过的技能\n---\n\nbody')
+  const longAgo = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000)
+  fs.utimesSync(oldSkillFile, longAgo, longAgo)
+  fs.utimesSync(join(scratch, 'skills', 'old-indexed'), longAgo, longAgo)
+  await new Promise((r) => setTimeout(r, 2000))   // 等 watcher 重扫 + 策略重算
+
+  {
+    const registered = []
+    const fakeScopedRegistry = {
+      register: (def) => { registered.push(def); return () => {} },
+      snapshot: async () => ({ skills: [{ name: 'old-indexed', invocation: { modelInvocable: false, userInvocable: true } }], complete: true }),
+    }
+    const fakeAgent = { ctx: { get: (n) => (n === 'skills' ? fakeScopedRegistry : undefined) } }
+    const preStep = (events['agent/pre-step'] || [])[0]
+    check('agent/pre-step hook registered', typeof preStep === 'function')
+    if (typeof preStep === 'function') {
+      await preStep({ agent: fakeAgent }, async () => ({ kind: 'continue', messages: [] }))
+      const hit = registered.find((d) => d.name === 'old-indexed')
+      check('agent 作用域影子：索引技能被注册为 modelInvocable=false',
+        hit !== undefined && hit.invocation.modelInvocable === false && hit.invocation.userInvocable === true,
+        JSON.stringify(registered.map((d) => d.name)))
+      check('agent 作用域影子带正文与描述（用户 /技能名 仍能用）',
+        hit !== undefined && typeof hit.content === 'string' && hit.content.length > 0 && hit.description !== '')
+      const before = registered.length
+      await preStep({ agent: fakeAgent }, async () => ({ kind: 'continue', messages: [] }))
+      check('同一 agent 同策略修订内不重复注册', registered.length === before, String(registered.length))
+    }
+    const shadowRes = mockRes()
+    routes['/skillpanel/skills'](mockReq(), shadowRes)
+    const shadowPayload = JSON.parse(shadowRes.body)
+    check('列表接口暴露影子自查结果（避免再次静默失效）',
+      shadowPayload.shadow !== undefined && shadowPayload.shadow.agentScoped >= 1,
+      JSON.stringify(shadowPayload.shadow))
+  }
+
   // 技能索引文档 skills.md（上游并入：按分类分组 + 带 SKILL.md 绝对路径 + 清单标注）
   const doc = internals.renderSkillsDoc(payload2.skills, '2026-10-12T00:00:00.000Z', null)
   check('skills.md 渲染出分类分组标题', doc.includes('## 网页检索（1）'), doc.split('\n').slice(0, 10).join(' | '))
